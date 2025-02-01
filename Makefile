@@ -1,5 +1,13 @@
 BIN_NAME := memdb
 LINTER_VERSION := v1.62.2
+MOCKERY_VERSION_v2 := 51.1
+
+.PHONY: all
+all: clean lint test build
+
+.PHONY: .install-mockery
+.install-mockery:
+	go install github.com/vektra/mockery/v2@v2.${MOCKERY_VERSION_v2}
 
 .PHONY: lint.install
 lint.install:
@@ -26,7 +34,7 @@ build:
 	go build -o build/${BIN_NAME} cmd/server/main.go
 
 .PHONY: generate
-generate:
+generate: .install-mockery
 	go generate ./...
 
 .PHONY: clean

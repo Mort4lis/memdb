@@ -8,6 +8,7 @@ import (
 	dberrors "github.com/Mort4lis/memdb/internal/db/errors"
 )
 
+//go:generate mockery --inpackage --testonly --case underscore --name Storage
 type Storage interface {
 	Set(ctx context.Context, key, value string) error
 	Get(ctx context.Context, key string) (string, error)
@@ -30,7 +31,7 @@ func (h *QueryHandler) Handle(ctx context.Context, req string) string {
 	query, err := ParseQuery(req)
 	if err != nil {
 		h.logger.Warn("failed to parse query", slog.Any("error", err))
-		return formatError(parseQueryErrorPrefix, err)
+		return ParseQueryErrorResponse.WithErr(err).String()
 	}
 
 	switch query.cmdID {
@@ -45,7 +46,7 @@ func (h *QueryHandler) Handle(ctx context.Context, req string) string {
 			"handler is not configured for serving query",
 			slog.String("command", query.cmdID.String()),
 		)
-		return formatError(internalErrorPrefix, dberrors.ErrInternal)
+		return InternalErrorResponse.WithErr(dberrors.ErrInternal).String()
 	}
 }
 
@@ -53,9 +54,9 @@ func (h *QueryHandler) handleSet(ctx context.Context, query Query) string {
 	args := query.Args()
 	if err := h.store.Set(ctx, args[0], args[1]); err != nil {
 		h.logger.Error("failed to handle SET query", slog.Any("error", err))
-		return formatError(internalErrorPrefix, err)
+		return InternalErrorResponse.WithErr(err).String()
 	}
-	return ""
+	return OKResponse.String()
 }
 
 func (h *QueryHandler) handleGet(ctx context.Context, query Query) string {
@@ -66,20 +67,20 @@ func (h *QueryHandler) handleGet(ctx context.Context, query Query) string {
 			"key is not found",
 			slog.String("key", args[0]),
 		)
-		return formatError(notFoundErrorPrefix, err)
+		return NotFoundResponse.WithErr(err).String()
 	}
 	if err != nil {
 		h.logger.Error("failed to handle GET query", slog.Any("error", err))
-		return formatError(internalErrorPrefix, err)
+		return InternalErrorResponse.WithErr(err).String()
 	}
-	return res
+	return OKResponse.WithValue(res).String()
 }
 
 func (h *QueryHandler) handleDel(ctx context.Context, query Query) string {
 	args := query.Args()
 	if err := h.store.Del(ctx, args[0]); err != nil {
 		h.logger.Error("failed to handle DEL query", slog.Any("error", err))
-		return formatError(internalErrorPrefix, err)
+		return InternalErrorResponse.WithErr(err).String()
 	}
-	return ""
+	return OKResponse.String()
 }
