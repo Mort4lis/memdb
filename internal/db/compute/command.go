@@ -1,7 +1,7 @@
 package compute
 
 import (
-	pkgmaps "github.com/Mort4lis/memdb/pkg/maps"
+	pkgmaps "github.com/Mort4lis/memdb/internal/pkg/maps"
 )
 
 const (
