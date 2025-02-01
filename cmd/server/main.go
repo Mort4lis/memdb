@@ -11,7 +11,7 @@ import (
 func main() {
 	var confPath string
 
-	flag.StringVar(&confPath, "c", "./configs/config.yaml", "The configuration file path")
+	flag.StringVar(&confPath, "c", "config.yaml", "The configuration file path")
 	flag.Parse()
 
 	if err := db.Run(confPath); err != nil {
