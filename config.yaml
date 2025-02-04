@@ -1,3 +1,11 @@
+engine:
+  type: "in_memory"
+network:
+  addr: ":7991"
+  max_connections: 2
+  max_message_size: 15
+  idle_timeout: 2m
+  write_timeout: 15s
 logging:
-  level: debug
-  format: text
+  level: "debug"
+  format: "text"
