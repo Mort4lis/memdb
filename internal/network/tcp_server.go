@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
+	"github.com/Mort4lis/memdb/internal/pkg/netutils"
 )
 
 type TCPHandler interface {
@@ -24,12 +25,50 @@ func (fn TCPHandlerFunc) Handle(ctx context.Context, req string) string {
 }
 
 type TCPServerConfig struct {
-	Addr           string
-	MaxConnections int
-	MaxMessageSize int
-	IdleTimeout    time.Duration
-	WriteTimeout   time.Duration
+	addr           string
+	maxConnections int
+	maxMessageSize int
+	idleTimeout    time.Duration
+	writeTimeout   time.Duration
 }
+
+type TCPServerOption func(c *TCPServerConfig)
+
+func WithServerListen(addr string) TCPServerOption {
+	return func(c *TCPServerConfig) {
+		c.addr = addr
+	}
+}
+
+func WithServerMaxConnections(n int) TCPServerOption {
+	return func(c *TCPServerConfig) {
+		c.maxConnections = n
+	}
+}
+
+func WithServerMaxMessageSize(n int) TCPServerOption {
+	return func(c *TCPServerConfig) {
+		c.maxMessageSize = n
+	}
+}
+
+func WithServerIdleTimeout(d time.Duration) TCPServerOption {
+	return func(c *TCPServerConfig) {
+		c.idleTimeout = d
+	}
+}
+
+func WithServerWriteTimeout(d time.Duration) TCPServerOption {
+	return func(c *TCPServerConfig) {
+		c.writeTimeout = d
+	}
+}
+
+const (
+	defaultListenAddr     = ":7991"
+	defaultMaxConnections = 100
+	defaultMaxMessageSize = 4096
+)
 
 type TCPServer struct {
 	lis    net.Listener
@@ -40,10 +79,19 @@ type TCPServer struct {
 	conf   TCPServerConfig
 }
 
-func NewTCPServer(logger *slog.Logger, conf TCPServerConfig) (*TCPServer, error) {
-	lis, err := net.Listen("tcp", conf.Addr)
+func NewTCPServer(logger *slog.Logger, opts ...TCPServerOption) (*TCPServer, error) {
+	conf := TCPServerConfig{
+		addr:           defaultListenAddr,
+		maxConnections: defaultMaxConnections,
+		maxMessageSize: defaultMaxMessageSize,
+	}
+	for _, opt := range opts {
+		opt(&conf)
+	}
+
+	lis, err := net.Listen("tcp", conf.addr)
 	if err != nil {
-		return nil, fmt.Errorf("listen %s: %w", conf.Addr, err)
+		return nil, fmt.Errorf("listen %s: %w", conf.addr, err)
 	}
 
 	return &TCPServer{
@@ -51,7 +99,7 @@ func NewTCPServer(logger *slog.Logger, conf TCPServerConfig) (*TCPServer, error)
 		conf:   conf,
 		logger: logger,
 		wg:     &sync.WaitGroup{},
-		sema:   concurrency.NewSemaphore(conf.MaxConnections),
+		sema:   concurrency.NewSemaphore(conf.maxConnections),
 	}, nil
 }
 
@@ -104,9 +152,9 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 		logger.Info("Disconnected client")
 	}()
 
-	buf := make([]byte, s.conf.MaxMessageSize)
+	buf := make([]byte, s.conf.maxMessageSize)
 	for {
-		s.setReadDeadline(logger, conn)
+		netutils.SetReadDeadline(conn, s.conf.idleTimeout)
 		n, err := conn.Read(buf)
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
@@ -121,31 +169,11 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 
 		resp := h.Handle(ctx, string(buf[:n]))
 
-		s.setWriteDeadline(logger, conn)
+		netutils.SetWriteDeadline(conn, s.conf.writeTimeout)
 		if _, err = conn.Write([]byte(resp)); err != nil {
 			logger.Error("failed to write data", slog.Any("error", err))
 			return
 		}
-	}
-}
-
-func (s *TCPServer) setReadDeadline(logger *slog.Logger, conn net.Conn) {
-	if s.conf.IdleTimeout == 0 {
-		return
-	}
-
-	if err := conn.SetReadDeadline(time.Now().Add(s.conf.IdleTimeout)); err != nil {
-		logger.Error("failed to set read deadline", slog.Any("error", err))
-	}
-}
-
-func (s *TCPServer) setWriteDeadline(logger *slog.Logger, conn net.Conn) {
-	if s.conf.WriteTimeout == 0 {
-		return
-	}
-
-	if err := conn.SetWriteDeadline(time.Now().Add(s.conf.WriteTimeout)); err != nil {
-		logger.Error("failed to set write deadline", slog.Any("error", err))
 	}
 }
 
