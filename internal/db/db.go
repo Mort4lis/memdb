@@ -29,13 +29,7 @@ func Run(confPath string) error {
 
 	engine := storage.NewEngine()
 	handler := compute.NewQueryHandler(logger, engine)
-	server, err := network.NewTCPServer(logger, network.TCPServerConfig{
-		Addr:           conf.Network.Addr,
-		MaxConnections: conf.Network.MaxConnections,
-		MaxMessageSize: conf.Network.MaxMessageSize,
-		IdleTimeout:    conf.Network.IdleTimeout,
-		WriteTimeout:   conf.Network.WriteTimeout,
-	})
+	server, err := network.NewTCPServer(logger, conf.Network.ServerOptions()...)
 	if err != nil {
 		return fmt.Errorf("create tcp server: %v", err)
 	}
