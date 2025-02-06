@@ -3,7 +3,6 @@ package network
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"time"
 
@@ -87,7 +86,7 @@ func (c *TCPClient) Send(req string) (string, error) {
 
 	netutils.SetReadDeadline(c.conn, c.conf.readTimeout)
 	n, err := c.conn.Read(buf)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil {
 		return "", fmt.Errorf("read tcp socket: %w", err)
 	}
 	if n == c.conf.readBufferSize {
