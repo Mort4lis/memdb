@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 var errUnexpected = errors.New("unexpected")
 
 func TestQueryHandler_Handle(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
 	testCases := []struct {
 		name       string
 		request    string
@@ -95,7 +98,7 @@ func TestQueryHandler_Handle(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 
-			gotResult := NewQueryHandler(slog.Default(), store).Handle(ctx, tc.request)
+			gotResult := NewQueryHandler(logger, store).Handle(ctx, tc.request)
 			assert.Equal(t, tc.wantResult, gotResult)
 		})
 	}
