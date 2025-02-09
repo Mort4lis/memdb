@@ -103,6 +103,10 @@ func NewTCPServer(logger *slog.Logger, opts ...TCPServerOption) (*TCPServer, err
 	}, nil
 }
 
+func (s *TCPServer) ListenPort() int {
+	return s.lis.Addr().(*net.TCPAddr).Port //nolint:errcheck // ignore
+}
+
 func (s *TCPServer) ServeHandler(h TCPHandler) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
@@ -120,12 +124,12 @@ func (s *TCPServer) ServeHandler(h TCPHandler) {
 				continue
 			}
 
-			s.sema.Acquire()
 			s.wg.Add(1)
+			s.sema.Acquire()
 			go func() {
 				defer func() {
-					s.wg.Done()
 					s.sema.Release()
+					s.wg.Done()
 				}()
 				s.handleConnection(ctx, conn, h)
 			}()
@@ -179,7 +183,10 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 
 func (s *TCPServer) Shutdown() error {
 	err := s.lis.Close()
-	s.cancel()
+	if s.cancel != nil {
+		s.cancel()
+	}
+
 	s.wg.Wait()
 
 	if err != nil {
