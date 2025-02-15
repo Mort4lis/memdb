@@ -1,0 +1,9 @@
+**
+
+!/cmd/**
+!/internal/**
+!/pkg/**
+!config.yaml
+!Makefile
+!go.mod
+!go.sum
