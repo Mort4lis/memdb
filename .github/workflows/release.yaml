@@ -1,0 +1,17 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  make_release:
+    uses: ./.github/workflows/make_release.yaml
+
+  publish:
+    needs: make_release
+    uses: ./.github/workflows/publish.yaml
+    secrets:
+      username: ${{ secrets.DOCKER_USERNAME }}
+      password: ${{ secrets.DOCKER_PASSWORD }}
