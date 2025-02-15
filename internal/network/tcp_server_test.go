@@ -112,7 +112,7 @@ func runTCPServerTest(t *testing.T, h TCPHandler, opts []TCPServerOption, fn tcp
 	srv, err := NewTCPServer(logger, opts...)
 	require.NoError(t, err)
 	defer func() {
-		assert.NoError(t, srv.Shutdown())
+		assert.NoError(t, srv.Shutdown(context.Background()))
 	}()
 
 	go srv.ServeHandler(h)

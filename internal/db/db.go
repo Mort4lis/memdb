@@ -1,11 +1,13 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 
@@ -15,6 +17,8 @@ import (
 	"github.com/Mort4lis/memdb/internal/db/storage"
 	"github.com/Mort4lis/memdb/internal/network"
 )
+
+const shutdownTimeout = 30 * time.Second
 
 func Run(confPath string) error {
 	var conf config.Config
@@ -45,7 +49,10 @@ func Run(confPath string) error {
 	sig := <-quit
 	logger.Info("Caught signal. Shutting down...", slog.String("signal", sig.String()))
 
-	if err = server.Shutdown(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if err = server.Shutdown(ctx); err != nil {
 		logger.Error("Failed to shutdown tcp server", slog.Any("error", err))
 	}
 	return nil
