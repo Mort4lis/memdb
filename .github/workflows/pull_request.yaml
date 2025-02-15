@@ -1,0 +1,13 @@
+name: Pull request
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yaml
+  test:
+    needs: lint
+    uses: ./.github/workflows/test.yaml
