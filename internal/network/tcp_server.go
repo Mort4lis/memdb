@@ -120,6 +120,9 @@ func (s *TCPServer) ServeHandler(h TCPHandler) {
 
 			conn, err := s.lis.Accept()
 			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
 				s.logger.Error("failed to accept connection", slog.Any("error", err))
 				continue
 			}
@@ -143,7 +146,6 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 	logger := s.logger.With(slog.String("client_address", conn.RemoteAddr().String()))
 	logger.Info("Connected client")
 
-	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		if err := recover(); err != nil {
 			logger.Error("caught panic", slog.Any("panic", err))
@@ -151,15 +153,21 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 		if err := conn.Close(); err != nil {
 			logger.Error("failed to close connection", slog.Any("error", err))
 		}
-
-		cancel()
 		logger.Info("Disconnected client")
 	}()
 
 	buf := make([]byte, s.conf.maxMessageSize)
 	for {
-		netutils.SetReadDeadline(conn, s.conf.idleTimeout)
-		n, err := conn.Read(buf)
+		var (
+			n   int
+			err error
+		)
+
+		err = concurrency.WithContextCheck(ctx, func() error {
+			netutils.SetReadDeadline(conn, s.conf.idleTimeout)
+			n, err = conn.Read(buf)
+			return err //nolint:wrapcheck // ignore
+		})
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				logger.Error("failed to read data", slog.Any("error", err))
@@ -171,26 +179,47 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 			return
 		}
 
-		resp := h.Handle(ctx, string(buf[:n]))
+		var resp string
+		err = concurrency.WithContextCheck(ctx, func() error {
+			resp = h.Handle(ctx, string(buf[:n]))
+			return nil
+		})
 
-		netutils.SetWriteDeadline(conn, s.conf.writeTimeout)
-		if _, err = conn.Write([]byte(resp)); err != nil {
+		err = concurrency.WithContextCheck(ctx, func() error {
+			netutils.SetWriteDeadline(conn, s.conf.writeTimeout)
+			_, err = conn.Write([]byte(resp))
+			return err //nolint:wrapcheck // ignore
+		})
+		if err != nil {
 			logger.Error("failed to write data", slog.Any("error", err))
 			return
 		}
 	}
 }
 
-func (s *TCPServer) Shutdown() error {
+func (s *TCPServer) Shutdown(ctx context.Context) error {
+	// Close listener to prevent accepting new connections.
 	err := s.lis.Close()
+	if err != nil {
+		return fmt.Errorf("close listener: %w", err)
+	}
+
+	// Notify active connections about shutdown.
 	if s.cancel != nil {
 		s.cancel()
 	}
 
-	s.wg.Wait()
+	doneCh := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(doneCh)
+	}()
 
-	if err != nil {
-		return fmt.Errorf("close listener: %w", err)
+	// Wait for all connections to complete or for the shutdown context to be triggered.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-doneCh:
+		return nil
 	}
-	return nil
 }
