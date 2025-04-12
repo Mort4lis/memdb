@@ -9,3 +9,8 @@ network:
 logging:
   level: "debug"
   format: "text"
+wal:
+  flushing_batch_size: 100
+  flushing_batch_interval: "10ms"
+  max_segment_size: 1024
+  data_directory: "./data/wal"
