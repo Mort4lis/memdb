@@ -23,7 +23,7 @@ type Engine interface {
 
 type WAL interface {
 	Append(r wal.Record) concurrency.FutureError
-	Walk(fn func(r wal.Record) error) error
+	Restore(fn func(r wal.Record) error) error
 	Shutdown(ctx context.Context) error
 }
 
@@ -48,8 +48,10 @@ func NewStorage(engineConf config.Engine, walConf *config.WAL) (*Storage, error)
 		if err != nil {
 			return nil, fmt.Errorf("create WAL: %w", err)
 		}
-		if err = store.restore(); err != nil {
-			return nil, fmt.Errorf("restore from WAL: %w", err)
+
+		err = store.restore()
+		if err != nil {
+			return nil, err
 		}
 	}
 	return store, nil
@@ -57,7 +59,7 @@ func NewStorage(engineConf config.Engine, walConf *config.WAL) (*Storage, error)
 
 func (s *Storage) restore() error {
 	ctx := context.Background()
-	err := s.wal.Walk(func(r wal.Record) error {
+	err := s.wal.Restore(func(r wal.Record) error {
 		switch r.CommandID {
 		case compute.SetCommandID:
 			if err := s.engine.Set(ctx, r.Args[0], r.Args[1]); err != nil {
@@ -73,7 +75,7 @@ func (s *Storage) restore() error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("walk through WAL: %w", err)
+		return fmt.Errorf("restore WAL: %w", err)
 	}
 	return nil
 }

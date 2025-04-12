@@ -41,8 +41,12 @@ func NewWAL(conf config.WAL) (*WAL, error) {
 	return wal, nil
 }
 
-func (wal *WAL) Walk(fn func(r Record) error) error {
-	var buf bytes.Buffer
+func (wal *WAL) Restore(fn func(r Record) error) error {
+	var (
+		lsn int64
+		buf bytes.Buffer
+	)
+
 	err := wal.segCtrl.WalkLines(func(line []byte) error {
 		var r Record
 		buf.Write(line)
@@ -50,12 +54,15 @@ func (wal *WAL) Walk(fn func(r Record) error) error {
 			return fmt.Errorf("decode record: %w", err)
 		}
 
+		lsn = r.LSN
 		buf.Reset()
 		return fn(r)
 	})
 	if err != nil {
 		return err //nolint:wrapcheck // ignore
 	}
+
+	wal.lsn.Store(lsn)
 	return nil
 }
 
