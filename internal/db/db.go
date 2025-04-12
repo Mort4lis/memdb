@@ -31,8 +31,12 @@ func Run(confPath string) error {
 		return fmt.Errorf("create logger: %v", err)
 	}
 
-	engine := storage.NewEngine()
-	handler := compute.NewQueryHandler(logger, engine)
+	store, err := storage.NewStorage(conf.Engine, conf.WAL)
+	if err != nil {
+		return fmt.Errorf("create storage: %v", err)
+	}
+
+	handler := compute.NewQueryHandler(logger, store)
 	server, err := network.NewTCPServer(logger, conf.Network.ServerOptions()...)
 	if err != nil {
 		return fmt.Errorf("create tcp server: %v", err)
@@ -51,6 +55,10 @@ func Run(confPath string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+
+	if err = store.Shutdown(ctx); err != nil {
+		logger.Error("Failed to shutdown storage", slog.Any("error", err))
+	}
 
 	if err = server.Shutdown(ctx); err != nil {
 		logger.Error("Failed to shutdown tcp server", slog.Any("error", err))

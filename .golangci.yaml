@@ -201,6 +201,7 @@ linters-settings:
       - error
       - empty
       - stdlib
+      - generic
       # You can specify idiomatic endings for interface
       - (or|er)$
       - (Factory)$

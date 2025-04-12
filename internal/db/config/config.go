@@ -10,6 +10,7 @@ type Config struct {
 	Engine  Engine  `yaml:"engine"`
 	Network Network `yaml:"network"`
 	Logging Logging `yaml:"logging"`
+	WAL     *WAL    `yaml:"wal"`
 }
 
 type Engine struct {
@@ -42,4 +43,11 @@ func (c Network) ServerOptions() []network.TCPServerOption {
 type Logging struct {
 	Level  string `env-default:"info" yaml:"level"`
 	Format string `env-default:"text" yaml:"format"`
+}
+
+type WAL struct {
+	FlushBatchSize     int           `env-default:"100"             yaml:"flushing_batch_size"`
+	FlushBatchInterval time.Duration `env-default:"10ms"            yaml:"flushing_batch_interval"`
+	MaxSegmentSize     int           `env-default:"1048576"         yaml:"max_segment_size"`
+	DataDir            string        `env-default:"/data/memdb/wal" yaml:"data_directory"`
 }
