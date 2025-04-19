@@ -1,37 +1,34 @@
 package wal
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"sync/atomic"
 	"time"
 
-	"github.com/Mort4lis/memdb/internal/db/config"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal/filesystem"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
 type WAL struct {
-	conf    config.WAL
-	lsn     atomic.Int64
-	inCh    chan Record
-	doneCh  chan struct{}
-	segCtrl *filesystem.SegmentController
-	cancel  func()
+	flushBatchSize     int
+	flushBatchInterval time.Duration
+	rr                 *RecordReader
+	rw                 *RecordWriter
+
+	lsn    atomic.Int64
+	inCh   chan Record
+	doneCh chan struct{}
+	cancel func()
 }
 
-func NewWAL(conf config.WAL) (*WAL, error) {
-	segCtrl, err := filesystem.NewSegmentController(conf.DataDir, conf.MaxSegmentSize)
-	if err != nil {
-		return nil, fmt.Errorf("create segment controller: %w", err)
-	}
-
+func NewWAL(dir segmentDirectory, w segmentWriter, flushBatchSize int, flushBatchInterval time.Duration) (*WAL, error) {
 	wal := &WAL{
-		conf:    conf,
-		inCh:    make(chan Record),
-		doneCh:  make(chan struct{}),
-		segCtrl: segCtrl,
+		flushBatchSize:     flushBatchSize,
+		flushBatchInterval: flushBatchInterval,
+		rr:                 NewRecordReader(dir),
+		rw:                 NewRecordWriter(w),
+		inCh:               make(chan Record),
+		doneCh:             make(chan struct{}),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,24 +39,24 @@ func NewWAL(conf config.WAL) (*WAL, error) {
 }
 
 func (wal *WAL) Restore(fn func(r Record) error) error {
+	seq, err := wal.rr.All()
+	if err != nil {
+		return fmt.Errorf("read records: %w", err)
+	}
+
 	var (
+		r   Record
 		lsn int64
-		buf bytes.Buffer
 	)
 
-	err := wal.segCtrl.WalkLines(func(line []byte) error {
-		var r Record
-		buf.Write(line)
-		if err := r.Decode(&buf); err != nil {
-			return fmt.Errorf("decode record: %w", err)
+	for r, err = range seq {
+		if err != nil {
+			return fmt.Errorf("read record: %w", err)
 		}
-
+		if err = fn(r); err != nil {
+			return fmt.Errorf("restore record: %w", err)
+		}
 		lsn = r.LSN
-		buf.Reset()
-		return fn(r)
-	})
-	if err != nil {
-		return err //nolint:wrapcheck // ignore
 	}
 
 	wal.lsn.Store(lsn)
@@ -67,10 +64,10 @@ func (wal *WAL) Restore(fn func(r Record) error) error {
 }
 
 func (wal *WAL) handleIncomingEntries(ctx context.Context) {
-	ticker := time.NewTicker(wal.conf.FlushBatchInterval)
+	ticker := time.NewTicker(wal.flushBatchInterval)
 	defer ticker.Stop()
 
-	batch := make([]Record, 0, wal.conf.FlushBatchSize)
+	batch := make([]Record, 0, wal.flushBatchSize)
 
 	for {
 		select {
@@ -80,9 +77,9 @@ func (wal *WAL) handleIncomingEntries(ctx context.Context) {
 			return
 		case record := <-wal.inCh:
 			batch = append(batch, record)
-			if len(batch) == wal.conf.FlushBatchSize {
+			if len(batch) == wal.flushBatchSize {
 				wal.flushBatch(&batch)
-				ticker.Reset(wal.conf.FlushBatchInterval)
+				ticker.Reset(wal.flushBatchInterval)
 			}
 		case <-ticker.C:
 			wal.flushBatch(&batch)
@@ -96,26 +93,15 @@ func (wal *WAL) flushBatch(batchPtr *[]Record) {
 		return
 	}
 
-	var buf bytes.Buffer
-	var err error
-
-	defer func() {
-		for _, record := range batch {
-			record.promise.Set(err)
-		}
-		*batchPtr = batch[:0]
-	}()
-
-	for _, record := range batch {
-		if err = record.Encode(&buf); err != nil {
-			return
-		}
-		if err = wal.segCtrl.Write(buf.Bytes()); err != nil {
-			return
-		}
+	err := wal.rw.Write(batch)
+	if err != nil {
+		err = fmt.Errorf("write record batch: %w", err)
 	}
 
-	err = wal.segCtrl.Flush()
+	for _, record := range batch {
+		record.promise.Set(err)
+	}
+	*batchPtr = batch[:0]
 }
 
 func (wal *WAL) Append(r Record) concurrency.FutureError {
