@@ -8,6 +8,7 @@ import (
 	"github.com/Mort4lis/memdb/internal/db/config"
 	"github.com/Mort4lis/memdb/internal/db/storage/engine"
 	"github.com/Mort4lis/memdb/internal/db/storage/wal"
+	"github.com/Mort4lis/memdb/internal/db/storage/wal/filesystem"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
@@ -44,9 +45,9 @@ func NewStorage(engineConf config.Engine, walConf *config.WAL) (*Storage, error)
 
 	if walConf != nil {
 		var err error
-		store.wal, err = wal.NewWAL(*walConf)
+		store.wal, err = initWAL(walConf)
 		if err != nil {
-			return nil, fmt.Errorf("create WAL: %w", err)
+			return nil, fmt.Errorf("init WAL: %w", err)
 		}
 
 		err = store.restore()
@@ -130,4 +131,22 @@ func (s *Storage) Shutdown(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func initWAL(conf *config.WAL) (*wal.WAL, error) {
+	segmentDir, err := filesystem.NewSegmentDirectory(conf.DataDir)
+	if err != nil {
+		return nil, fmt.Errorf("new segment directory: %w", err)
+	}
+
+	segment, err := filesystem.NewSegment(conf.DataDir, conf.MaxSegmentSize)
+	if err != nil {
+		return nil, fmt.Errorf("new segment: %w", err)
+	}
+
+	res, err := wal.NewWAL(segmentDir, segment, conf.FlushBatchSize, conf.FlushBatchInterval)
+	if err != nil {
+		return nil, fmt.Errorf("new WAL: %w", err)
+	}
+	return res, nil
 }
