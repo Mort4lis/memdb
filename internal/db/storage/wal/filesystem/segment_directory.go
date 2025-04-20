@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"os"
+	"sort"
 
 	"github.com/Mort4lis/memdb/internal/pkg/fsutils"
 )
@@ -19,24 +20,26 @@ func NewSegmentDirectory(dirPath string) (*SegmentDirectory, error) {
 	return &SegmentDirectory{dirPath: dirPath}, nil
 }
 
-func (sd *SegmentDirectory) List() (iter.Seq2[[]byte, error], error) {
-	paths, err := fsutils.ListDir(sd.dirPath)
-	if err != nil {
-		return nil, fmt.Errorf("list all segments: %w", err)
-	}
-
+func (sd *SegmentDirectory) List() iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
+		paths, err := fsutils.ListDir(sd.dirPath)
+		if err != nil {
+			err = fmt.Errorf("list all segments: %w", err)
+			yield(nil, err)
+			return
+		}
+		sort.Strings(paths)
+
 		for _, path := range paths {
-			var data []byte
-			data, err = os.ReadFile(path)
-			if err != nil {
-				err = fmt.Errorf("read segment: %w", err)
-				yield(nil, err)
+			data, readErr := os.ReadFile(path)
+			if readErr != nil {
+				readErr = fmt.Errorf("read segment %s: %w", path, readErr)
+				yield(nil, readErr)
 				return
 			}
 			if !yield(data, nil) {
 				return
 			}
 		}
-	}, nil
+	}
 }

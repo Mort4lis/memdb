@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 )
 
 func ListDir(dirPath string) ([]string, error) {
@@ -21,6 +20,5 @@ func ListDir(dirPath string) ([]string, error) {
 		filePaths = append(filePaths, filepath.Join(dirPath, entry.Name()))
 	}
 
-	slices.Sort(filePaths)
 	return filePaths, nil
 }

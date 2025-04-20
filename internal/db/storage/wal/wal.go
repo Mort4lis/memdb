@@ -9,6 +9,8 @@ import (
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
+var ErrClosed = fmt.Errorf("wal closed")
+
 type WAL struct {
 	flushBatchSize     int
 	flushBatchInterval time.Duration
@@ -21,7 +23,7 @@ type WAL struct {
 	cancel func()
 }
 
-func NewWAL(dir segmentDirectory, w segmentWriter, flushBatchSize int, flushBatchInterval time.Duration) (*WAL, error) {
+func NewWAL(dir SegmentDirectory, w SegmentWriter, flushBatchSize int, flushBatchInterval time.Duration) (*WAL, error) {
 	wal := &WAL{
 		flushBatchSize:     flushBatchSize,
 		flushBatchInterval: flushBatchInterval,
@@ -39,17 +41,8 @@ func NewWAL(dir segmentDirectory, w segmentWriter, flushBatchSize int, flushBatc
 }
 
 func (wal *WAL) Restore(fn func(r Record) error) error {
-	seq, err := wal.rr.All()
-	if err != nil {
-		return fmt.Errorf("read records: %w", err)
-	}
-
-	var (
-		r   Record
-		lsn int64
-	)
-
-	for r, err = range seq {
+	var lsn int64
+	for r, err := range wal.rr.All() {
 		if err != nil {
 			return fmt.Errorf("read record: %w", err)
 		}
@@ -98,8 +91,8 @@ func (wal *WAL) flushBatch(batchPtr *[]Record) {
 		err = fmt.Errorf("write record batch: %w", err)
 	}
 
-	for _, record := range batch {
-		record.promise.Set(err)
+	for i := range batch {
+		batch[i].promise.Set(err)
 	}
 	*batchPtr = batch[:0]
 }
@@ -107,14 +100,26 @@ func (wal *WAL) flushBatch(batchPtr *[]Record) {
 func (wal *WAL) Append(r Record) concurrency.FutureError {
 	r.LSN = wal.lsn.Add(1)
 	r.promise = concurrency.NewPromise[error]()
-	wal.inCh <- r
+
+	select {
+	case wal.inCh <- r:
+	case <-wal.doneCh:
+		r.promise.Set(ErrClosed)
+	}
+
 	return r.promise.Future()
 }
 
-func (wal *WAL) Shutdown(ctx context.Context) error {
+func (wal *WAL) Shutdown(ctx context.Context) (err error) {
 	if wal.cancel == nil {
 		return nil
 	}
+	defer func() {
+		closeErr := wal.rw.Close()
+		if closeErr != nil && err == nil {
+			err = fmt.Errorf("close record writer: %w", closeErr)
+		}
+	}()
 
 	wal.cancel()
 
