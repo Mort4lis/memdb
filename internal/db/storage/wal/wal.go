@@ -2,6 +2,7 @@ package wal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -9,7 +10,7 @@ import (
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
-var ErrClosed = fmt.Errorf("wal closed")
+var ErrClosed = errors.New("wal closed")
 
 type WAL struct {
 	flushBatchSize     int
