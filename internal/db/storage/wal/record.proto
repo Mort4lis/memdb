@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package schema.v1;
+
+option go_package = "github.com/Mort4lis/memdb/internal/db/storage/wal";
+
+message Record {
+  int64 lsn = 1;
+  int64 command_id = 2;
+  repeated string args = 3;
+}

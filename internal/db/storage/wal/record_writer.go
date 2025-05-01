@@ -2,9 +2,10 @@ package wal
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
+
+	"google.golang.org/protobuf/encoding/protodelim"
 )
 
 const defaultBufferSize = 4096
@@ -26,12 +27,10 @@ func NewRecordWriter(w SegmentWriter) *RecordWriter {
 	}
 }
 
-func (rw *RecordWriter) Write(rs []Record) error {
+func (rw *RecordWriter) Write(rs []*Record) error {
 	rw.buf.Reset()
-	enc := json.NewEncoder(rw.buf)
-
-	for i := range rs {
-		if err := enc.Encode(rs[i]); err != nil {
+	for i, record := range rs {
+		if _, err := protodelim.MarshalTo(rw.buf, record); err != nil {
 			return fmt.Errorf("encode record[%d]: %w", i, err)
 		}
 	}

@@ -2,11 +2,12 @@ package wal
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"iter"
+
+	"google.golang.org/protobuf/encoding/protodelim"
 )
 
 type SegmentDirectory interface {
@@ -21,28 +22,29 @@ func NewRecordReader(sd SegmentDirectory) *RecordReader {
 	return &RecordReader{sd: sd}
 }
 
-func (rr *RecordReader) All() iter.Seq2[Record, error] {
-	return func(yield func(Record, error) bool) {
+func (rr *RecordReader) All() iter.Seq2[*Record, error] {
+	return func(yield func(*Record, error) bool) {
 		for data, err := range rr.sd.List() {
 			if err != nil {
-				yield(Record{}, err)
+				yield(nil, err)
 				return
 			}
 
-			dec := json.NewDecoder(bytes.NewBuffer(data))
+			buf := bytes.NewBuffer(data)
 			for {
 				var r Record
-				decErr := dec.Decode(&r)
+				decErr := protodelim.UnmarshalFrom(buf, &r)
 				if errors.Is(decErr, io.EOF) {
 					break
 				}
+
 				if decErr != nil {
 					decErr = fmt.Errorf("decode record: %w", decErr)
-					yield(Record{}, decErr)
+					yield(nil, decErr)
 					return
 				}
 
-				if !yield(r, nil) {
+				if !yield(&r, nil) {
 					return
 				}
 			}
