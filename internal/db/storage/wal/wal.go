@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Mort4lis/memdb/internal/db/compute"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
@@ -48,13 +49,13 @@ func NewWAL(dir SegmentDirectory, w SegmentWriter, flushBatchSize int, flushBatc
 	return wal, nil
 }
 
-func (wal *WAL) Restore(fn func(r *Record) error) error {
+func (wal *WAL) Restore(fn func(cid compute.CommandID, args []string) error) error {
 	var lsn int64
 	for r, err := range wal.rr.All() {
 		if err != nil {
 			return fmt.Errorf("read record: %w", err)
 		}
-		if err = fn(r); err != nil {
+		if err = fn(compute.CommandID(r.CommandId), r.Args); err != nil {
 			return fmt.Errorf("restore record: %w", err)
 		}
 		lsn = r.Lsn
@@ -110,10 +111,13 @@ func (wal *WAL) flushBatch(batchPtr *[]recordPromise) {
 	*batchPtr = batch[:0]
 }
 
-func (wal *WAL) Append(r *Record) concurrency.FutureError {
-	r.Lsn = wal.lsn.Add(1)
+func (wal *WAL) Append(cid compute.CommandID, args []string) concurrency.FutureError {
 	rp := recordPromise{
-		record:  r,
+		record: &Record{
+			Lsn:       wal.lsn.Add(1),
+			CommandId: int64(cid),
+			Args:      args,
+		},
 		promise: concurrency.NewPromise[error](),
 	}
 
