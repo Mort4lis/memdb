@@ -10,24 +10,25 @@ import (
 
 const defaultBufferSize = 4096
 
+//go:generate mockery --inpackage --testonly --case underscore --name SegmentWriter
 type SegmentWriter interface {
 	io.Closer
 	Write([]byte) error
 }
 
-type RecordWriter struct {
+type recordWriter struct {
 	w   SegmentWriter
 	buf *bytes.Buffer
 }
 
-func NewRecordWriter(w SegmentWriter) *RecordWriter {
-	return &RecordWriter{
+func newRecordWriter(w SegmentWriter) *recordWriter {
+	return &recordWriter{
 		w:   w,
 		buf: bytes.NewBuffer(make([]byte, 0, defaultBufferSize)),
 	}
 }
 
-func (rw *RecordWriter) Write(rs []*Record) error {
+func (rw *recordWriter) Write(rs []*Record) error {
 	rw.buf.Reset()
 	for i, record := range rs {
 		if _, err := protodelim.MarshalTo(rw.buf, record); err != nil {
@@ -41,7 +42,7 @@ func (rw *RecordWriter) Write(rs []*Record) error {
 	return nil
 }
 
-func (rw *RecordWriter) Close() error {
+func (rw *recordWriter) Close() error {
 	if err := rw.w.Close(); err != nil {
 		return fmt.Errorf("close segment writer: %w", err)
 	}

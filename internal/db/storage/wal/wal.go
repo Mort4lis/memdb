@@ -23,8 +23,8 @@ type recordPromise struct {
 type WAL struct {
 	flushBatchSize     int
 	flushBatchInterval time.Duration
-	rr                 *RecordReader
-	rw                 *RecordWriter
+	rr                 *recordReader
+	rw                 *recordWriter
 
 	lsn    atomic.Int64
 	inCh   chan recordPromise
@@ -36,8 +36,8 @@ func NewWAL(dir SegmentDirectory, w SegmentWriter, flushBatchSize int, flushBatc
 	wal := &WAL{
 		flushBatchSize:     flushBatchSize,
 		flushBatchInterval: flushBatchInterval,
-		rr:                 NewRecordReader(dir),
-		rw:                 NewRecordWriter(w),
+		rr:                 newRecordReader(dir),
+		rw:                 newRecordWriter(w),
 		inCh:               make(chan recordPromise),
 		doneCh:             make(chan struct{}),
 	}
