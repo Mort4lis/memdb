@@ -10,19 +10,20 @@ import (
 	"google.golang.org/protobuf/encoding/protodelim"
 )
 
+//go:generate mockery --inpackage --testonly --case underscore --name SegmentDirectory
 type SegmentDirectory interface {
 	List() iter.Seq2[[]byte, error]
 }
 
-type RecordReader struct {
+type recordReader struct {
 	sd SegmentDirectory
 }
 
-func NewRecordReader(sd SegmentDirectory) *RecordReader {
-	return &RecordReader{sd: sd}
+func newRecordReader(sd SegmentDirectory) *recordReader {
+	return &recordReader{sd: sd}
 }
 
-func (rr *RecordReader) All() iter.Seq2[*Record, error] {
+func (rr *recordReader) All() iter.Seq2[*Record, error] {
 	return func(yield func(*Record, error) bool) {
 		for data, err := range rr.sd.List() {
 			if err != nil {
