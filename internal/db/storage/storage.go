@@ -23,8 +23,8 @@ type Engine interface {
 }
 
 type WAL interface {
-	Append(r wal.Record) concurrency.FutureError
-	Restore(fn func(r wal.Record) error) error
+	Append(r *wal.Record) concurrency.FutureError
+	Restore(fn func(r *wal.Record) error) error
 	Shutdown(ctx context.Context) error
 }
 
@@ -60,18 +60,18 @@ func NewStorage(engineConf config.Engine, walConf *config.WAL) (*Storage, error)
 
 func (s *Storage) restore() error {
 	ctx := context.Background()
-	err := s.wal.Restore(func(r wal.Record) error {
-		switch r.CommandID {
-		case compute.SetCommandID:
+	err := s.wal.Restore(func(r *wal.Record) error {
+		switch r.CommandId {
+		case int64(compute.SetCommandID):
 			if err := s.engine.Set(ctx, r.Args[0], r.Args[1]); err != nil {
 				return fmt.Errorf("set value in engine: %w", err)
 			}
-		case compute.DelCommandID:
+		case int64(compute.DelCommandID):
 			if err := s.engine.Del(ctx, r.Args[0]); err != nil {
 				return fmt.Errorf("delete value from engine: %w", err)
 			}
 		default:
-			return fmt.Errorf("unsupported command: %s", r.CommandID)
+			return fmt.Errorf("unsupported command with id: %d", r.CommandId)
 		}
 		return nil
 	})
@@ -83,8 +83,8 @@ func (s *Storage) restore() error {
 
 func (s *Storage) Set(ctx context.Context, key, value string) error {
 	if s.wal != nil {
-		future := s.wal.Append(wal.Record{
-			CommandID: compute.SetCommandID,
+		future := s.wal.Append(&wal.Record{
+			CommandId: int64(compute.SetCommandID),
 			Args:      []string{key, value},
 		})
 
@@ -109,8 +109,8 @@ func (s *Storage) Get(ctx context.Context, key string) (string, error) {
 
 func (s *Storage) Del(ctx context.Context, key string) error {
 	if s.wal != nil {
-		future := s.wal.Append(wal.Record{
-			CommandID: compute.DelCommandID,
+		future := s.wal.Append(&wal.Record{
+			CommandId: int64(compute.DelCommandID),
 			Args:      []string{key},
 		})
 		if err := future.Get(); err != nil {

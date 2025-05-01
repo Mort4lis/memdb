@@ -10,7 +10,14 @@ import (
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
+//go:generate protoc --go_out=. --go_opt=paths=source_relative record.proto
+
 var ErrClosed = errors.New("wal closed")
+
+type recordPromise struct {
+	record  *Record
+	promise concurrency.PromiseError
+}
 
 type WAL struct {
 	flushBatchSize     int
@@ -19,7 +26,7 @@ type WAL struct {
 	rw                 *RecordWriter
 
 	lsn    atomic.Int64
-	inCh   chan Record
+	inCh   chan recordPromise
 	doneCh chan struct{}
 	cancel func()
 }
@@ -30,7 +37,7 @@ func NewWAL(dir SegmentDirectory, w SegmentWriter, flushBatchSize int, flushBatc
 		flushBatchInterval: flushBatchInterval,
 		rr:                 NewRecordReader(dir),
 		rw:                 NewRecordWriter(w),
-		inCh:               make(chan Record),
+		inCh:               make(chan recordPromise),
 		doneCh:             make(chan struct{}),
 	}
 
@@ -41,7 +48,7 @@ func NewWAL(dir SegmentDirectory, w SegmentWriter, flushBatchSize int, flushBatc
 	return wal, nil
 }
 
-func (wal *WAL) Restore(fn func(r Record) error) error {
+func (wal *WAL) Restore(fn func(r *Record) error) error {
 	var lsn int64
 	for r, err := range wal.rr.All() {
 		if err != nil {
@@ -50,7 +57,7 @@ func (wal *WAL) Restore(fn func(r Record) error) error {
 		if err = fn(r); err != nil {
 			return fmt.Errorf("restore record: %w", err)
 		}
-		lsn = r.LSN
+		lsn = r.Lsn
 	}
 
 	wal.lsn.Store(lsn)
@@ -61,7 +68,7 @@ func (wal *WAL) handleIncomingEntries(ctx context.Context) {
 	ticker := time.NewTicker(wal.flushBatchInterval)
 	defer ticker.Stop()
 
-	batch := make([]Record, 0, wal.flushBatchSize)
+	batch := make([]recordPromise, 0, wal.flushBatchSize)
 
 	for {
 		select {
@@ -81,13 +88,18 @@ func (wal *WAL) handleIncomingEntries(ctx context.Context) {
 	}
 }
 
-func (wal *WAL) flushBatch(batchPtr *[]Record) {
+func (wal *WAL) flushBatch(batchPtr *[]recordPromise) {
 	batch := *batchPtr
 	if len(batch) == 0 {
 		return
 	}
 
-	err := wal.rw.Write(batch)
+	records := make([]*Record, len(batch))
+	for i := range batch {
+		records[i] = batch[i].record
+	}
+
+	err := wal.rw.Write(records)
 	if err != nil {
 		err = fmt.Errorf("write record batch: %w", err)
 	}
@@ -98,17 +110,20 @@ func (wal *WAL) flushBatch(batchPtr *[]Record) {
 	*batchPtr = batch[:0]
 }
 
-func (wal *WAL) Append(r Record) concurrency.FutureError {
-	r.LSN = wal.lsn.Add(1)
-	r.promise = concurrency.NewPromise[error]()
-
-	select {
-	case wal.inCh <- r:
-	case <-wal.doneCh:
-		r.promise.Set(ErrClosed)
+func (wal *WAL) Append(r *Record) concurrency.FutureError {
+	r.Lsn = wal.lsn.Add(1)
+	rp := recordPromise{
+		record:  r,
+		promise: concurrency.NewPromise[error](),
 	}
 
-	return r.promise.Future()
+	select {
+	case wal.inCh <- rp:
+	case <-wal.doneCh:
+		rp.promise.Set(ErrClosed)
+	}
+
+	return rp.promise.Future()
 }
 
 func (wal *WAL) Shutdown(ctx context.Context) (err error) {

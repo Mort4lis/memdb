@@ -2,6 +2,9 @@ BIN_NAME := memdb
 LINTER_VERSION := v1.62.2
 MOCKERY_VERSION_v2 := 51.1
 
+GOBIN=${GOPATH}/bin
+PROTOC_GEN_GO_VERSION := v1.36.6
+
 .PHONY: all
 all: clean lint test build
 
@@ -12,6 +15,10 @@ all: clean lint test build
 .PHONY: .install-linter
 .install-linter:
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ${GOPATH}/bin ${LINTER_VERSION}
+
+.PHONY: .install-protoc-gen-go
+.install-protoc-gen-go:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}
 
 .PHONY: lint
 lint:
