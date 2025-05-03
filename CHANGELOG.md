@@ -1,3 +1,16 @@
+# [1.1.0](https://github.com/Mort4lis/memdb/compare/v1.0.0...v1.1.0) (2025-05-03)
+
+
+### Bug Fixes
+
+* change WAL implementation to improve robustness and clarity ([7e49a7d](https://github.com/Mort4lis/memdb/commit/7e49a7d3fc62adbc8c36dbe4546f44e556a1584e))
+* restore WAL ([8787776](https://github.com/Mort4lis/memdb/commit/8787776ee00a3f45b491c5390411e80b6c2883d4))
+
+
+### Features
+
+* add WAL support to storage layer ([7e3401b](https://github.com/Mort4lis/memdb/commit/7e3401b258cad311122038104935b6d3f77977b9))
+
 # 1.0.0 (2025-02-15)
 
 
