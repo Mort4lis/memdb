@@ -1,5 +1,5 @@
 # memdb
-![Coverage](https://img.shields.io/badge/Coverage-66.7%25-yellow)
+![Coverage](https://img.shields.io/badge/Coverage-63.7%25-yellow)
 
 ![ci](https://github.com/Mort4lis/memdb/actions/workflows/release.yaml/badge.svg)
 [![semantic-release: angular](https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
