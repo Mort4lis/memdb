@@ -6,6 +6,7 @@ require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.5
+	google.golang.org/protobuf v1.36.6
 )
 
 require (
