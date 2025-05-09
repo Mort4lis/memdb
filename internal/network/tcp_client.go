@@ -76,10 +76,10 @@ func NewTCPClient(addr string, opts ...TCPClientOption) (*TCPClient, error) {
 	}, nil
 }
 
-func (c *TCPClient) Send(req string) (string, error) {
+func (c *TCPClient) Send(req []byte) ([]byte, error) {
 	netutils.SetWriteDeadline(c.conn, c.conf.writeTimeout)
-	if _, err := c.conn.Write([]byte(req)); err != nil {
-		return "", fmt.Errorf("write tcp socket: %w", err)
+	if _, err := c.conn.Write(req); err != nil {
+		return nil, fmt.Errorf("write tcp socket: %w", err)
 	}
 
 	buf := make([]byte, c.conf.readBufferSize)
@@ -87,12 +87,12 @@ func (c *TCPClient) Send(req string) (string, error) {
 	netutils.SetReadDeadline(c.conn, c.conf.readTimeout)
 	n, err := c.conn.Read(buf)
 	if err != nil {
-		return "", fmt.Errorf("read tcp socket: %w", err)
+		return nil, fmt.Errorf("read tcp socket: %w", err)
 	}
 	if n == c.conf.readBufferSize {
-		return "", errors.New("buffer is full")
+		return nil, errors.New("buffer is full")
 	}
-	return string(buf[:n]), nil
+	return buf[:n], nil
 }
 
 func (c *TCPClient) Close() error {

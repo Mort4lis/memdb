@@ -87,12 +87,14 @@ func action(c *cli.Context) error {
 			continue
 		}
 
-		var resp string
-		resp, err = client.Send(req)
+		var resp []byte
+		resp, err = client.Send([]byte(req))
 		if err != nil {
 			return fmt.Errorf("send request: %w", err)
 		}
-		_, _ = fmt.Fprintln(os.Stdout, resp)
+
+		os.Stdout.Write(resp)
+		os.Stdout.WriteString("\n")
 	}
 	if sc.Err() != nil {
 		return fmt.Errorf("scan error: %w", err)

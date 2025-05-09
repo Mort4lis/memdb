@@ -27,11 +27,11 @@ func NewQueryHandler(logger *slog.Logger, store Storage) *QueryHandler {
 	}
 }
 
-func (h *QueryHandler) Handle(ctx context.Context, req string) string {
-	query, err := ParseQuery(req)
+func (h *QueryHandler) Handle(ctx context.Context, req []byte) []byte {
+	query, err := ParseQuery(string(req))
 	if err != nil {
 		h.logger.Warn("failed to parse query", slog.Any("error", err))
-		return ParseQueryErrorResponse.WithErr(err).String()
+		return ParseQueryErrorResponse.WithErr(err).Bytes()
 	}
 
 	switch query.cmdID {
@@ -46,20 +46,20 @@ func (h *QueryHandler) Handle(ctx context.Context, req string) string {
 			"handler is not configured for serving query",
 			slog.String("command", query.cmdID.String()),
 		)
-		return InternalErrorResponse.WithErr(dberrors.ErrInternal).String()
+		return InternalErrorResponse.WithErr(dberrors.ErrInternal).Bytes()
 	}
 }
 
-func (h *QueryHandler) handleSet(ctx context.Context, query Query) string {
+func (h *QueryHandler) handleSet(ctx context.Context, query Query) []byte {
 	args := query.Args()
 	if err := h.store.Set(ctx, args[0], args[1]); err != nil {
 		h.logger.Error("failed to handle SET query", slog.Any("error", err))
-		return InternalErrorResponse.WithErr(err).String()
+		return InternalErrorResponse.WithErr(err).Bytes()
 	}
-	return OKResponse.String()
+	return OKResponse.Bytes()
 }
 
-func (h *QueryHandler) handleGet(ctx context.Context, query Query) string {
+func (h *QueryHandler) handleGet(ctx context.Context, query Query) []byte {
 	args := query.Args()
 	res, err := h.store.Get(ctx, args[0])
 	if errors.Is(err, dberrors.ErrNotFound) {
@@ -67,20 +67,20 @@ func (h *QueryHandler) handleGet(ctx context.Context, query Query) string {
 			"key is not found",
 			slog.String("key", args[0]),
 		)
-		return NotFoundResponse.WithErr(err).String()
+		return NotFoundResponse.WithErr(err).Bytes()
 	}
 	if err != nil {
 		h.logger.Error("failed to handle GET query", slog.Any("error", err))
-		return InternalErrorResponse.WithErr(err).String()
+		return InternalErrorResponse.WithErr(err).Bytes()
 	}
-	return OKResponse.WithValue(res).String()
+	return OKResponse.WithValue(res).Bytes()
 }
 
-func (h *QueryHandler) handleDel(ctx context.Context, query Query) string {
+func (h *QueryHandler) handleDel(ctx context.Context, query Query) []byte {
 	args := query.Args()
 	if err := h.store.Del(ctx, args[0]); err != nil {
 		h.logger.Error("failed to handle DEL query", slog.Any("error", err))
-		return InternalErrorResponse.WithErr(err).String()
+		return InternalErrorResponse.WithErr(err).Bytes()
 	}
-	return OKResponse.String()
+	return OKResponse.Bytes()
 }
