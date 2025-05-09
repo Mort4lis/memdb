@@ -7,8 +7,6 @@ import (
 	"github.com/Mort4lis/memdb/internal/db/compute"
 	"github.com/Mort4lis/memdb/internal/db/config"
 	"github.com/Mort4lis/memdb/internal/db/storage/engine"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal/filesystem"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
@@ -28,14 +26,21 @@ type WAL interface {
 	Shutdown(ctx context.Context) error
 }
 
+type Option func(s *Storage)
+
+func WithWAL(w WAL) Option {
+	return func(s *Storage) {
+		s.wal = w
+	}
+}
+
 type Storage struct {
 	engine Engine
 	wal    WAL
 }
 
-func NewStorage(engineConf config.Engine, walConf *config.WAL) (*Storage, error) {
+func NewStorage(engineConf config.Engine, opts ...Option) (*Storage, error) {
 	store := &Storage{}
-
 	switch engineConf.Type {
 	case InMemoryEngine:
 		store.engine = engine.NewEngine()
@@ -43,22 +48,19 @@ func NewStorage(engineConf config.Engine, walConf *config.WAL) (*Storage, error)
 		return nil, fmt.Errorf("unsupported engine type: %s", engineConf.Type)
 	}
 
-	if walConf != nil {
-		var err error
-		store.wal, err = initWAL(walConf)
-		if err != nil {
-			return nil, fmt.Errorf("init WAL: %w", err)
-		}
+	for _, opt := range opts {
+		opt(store)
+	}
 
-		err = store.restore()
-		if err != nil {
+	if store.wal != nil {
+		if err := store.restoreFromWAL(); err != nil {
 			return nil, err
 		}
 	}
 	return store, nil
 }
 
-func (s *Storage) restore() error {
+func (s *Storage) restoreFromWAL() error {
 	ctx := context.Background()
 	err := s.wal.Restore(func(cid compute.CommandID, args []string) error {
 		switch cid {
@@ -124,22 +126,4 @@ func (s *Storage) Shutdown(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func initWAL(conf *config.WAL) (*wal.WAL, error) {
-	segmentDir, err := filesystem.NewSegmentDirectory(conf.DataDir)
-	if err != nil {
-		return nil, fmt.Errorf("new segment directory: %w", err)
-	}
-
-	segment, err := filesystem.NewSegment(conf.DataDir, conf.MaxSegmentSize)
-	if err != nil {
-		return nil, fmt.Errorf("new segment: %w", err)
-	}
-
-	res, err := wal.NewWAL(segmentDir, segment, conf.FlushBatchSize, conf.FlushBatchInterval)
-	if err != nil {
-		return nil, fmt.Errorf("new WAL: %w", err)
-	}
-	return res, nil
 }
