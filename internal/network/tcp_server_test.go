@@ -18,8 +18,8 @@ const timeout = 10 * time.Millisecond
 
 type tcpServerTestFunc func(conn1, conn2 net.Conn)
 
-var defaultHandlerFunc = TCPHandlerFunc(func(_ context.Context, req string) string {
-	return req + "-response"
+var defaultHandlerFunc = TCPHandlerFunc(func(_ context.Context, req []byte) []byte {
+	return append(req, []byte("-response")...)
 })
 
 func TestTCPServer_ServeHandler_success(t *testing.T) {

@@ -101,10 +101,10 @@ func TestTCPClient(t *testing.T) {
 				return
 			}
 
-			resp, err := cli.Send("hello, server")
+			resp, err := cli.Send([]byte("hello, server"))
 			if tc.wantErr == nil {
 				require.NoError(t, err)
-				assert.Equal(t, serverResponse, resp)
+				assert.Equal(t, []byte(serverResponse), resp)
 			} else {
 				require.Error(t, err)
 				assert.Equal(t, tc.wantErr, err)

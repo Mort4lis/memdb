@@ -98,8 +98,8 @@ func TestQueryHandler_Handle(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 
-			gotResult := NewQueryHandler(logger, store).Handle(ctx, tc.request)
-			assert.Equal(t, tc.wantResult, gotResult)
+			gotResult := NewQueryHandler(logger, store).Handle(ctx, []byte(tc.request))
+			assert.Equal(t, []byte(tc.wantResult), gotResult)
 		})
 	}
 }
