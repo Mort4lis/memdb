@@ -31,24 +31,37 @@ func (rr *recordReader) All() iter.Seq2[*Record, error] {
 				return
 			}
 
-			buf := bytes.NewBuffer(data)
-			for {
-				var r Record
-				decErr := protodelim.UnmarshalFrom(buf, &r)
-				if errors.Is(decErr, io.EOF) {
-					break
-				}
+			rs, decErr := DecodeRecords(data)
+			if decErr != nil {
+				yield(nil, decErr)
+				return
+			}
 
-				if decErr != nil {
-					decErr = fmt.Errorf("decode record: %w", decErr)
-					yield(nil, decErr)
-					return
-				}
-
-				if !yield(&r, nil) {
+			for _, r := range rs {
+				if !yield(r, nil) {
 					return
 				}
 			}
 		}
 	}
+}
+
+func DecodeRecords(b []byte) ([]*Record, error) {
+	var rs []*Record
+	buf := bytes.NewBuffer(b)
+
+	for {
+		var r Record
+		err := protodelim.UnmarshalFrom(buf, &r)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("decode record: %w", err)
+		}
+
+		rs = append(rs, &r)
+	}
+
+	return rs, nil
 }

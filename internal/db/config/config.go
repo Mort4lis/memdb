@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	Engine  Engine  `yaml:"engine"`
-	Network Network `yaml:"network"`
-	Logging Logging `yaml:"logging"`
-	WAL     *WAL    `yaml:"wal"`
+	Engine      Engine      `yaml:"engine"`
+	Network     Network     `yaml:"network"`
+	Logging     Logging     `env-prefix:"LOG_"     yaml:"logging"`
+	WAL         WAL         `yaml:"wal"`
+	Replication Replication `env-prefix:"REPLICA_" yaml:"replication"`
 }
 
 type Engine struct {
@@ -41,8 +42,8 @@ func (c Network) ServerOptions() []network.TCPServerOption {
 }
 
 type Logging struct {
-	Level  string `env-default:"info" yaml:"level"`
-	Format string `env-default:"text" yaml:"format"`
+	Level  string `env:"LEVEL"  env-default:"info" yaml:"level"`
+	Format string `env:"FORMAT" env-default:"text" yaml:"format"`
 }
 
 type WAL struct {
@@ -50,4 +51,12 @@ type WAL struct {
 	FlushBatchInterval time.Duration `env-default:"10ms"            yaml:"flushing_batch_interval"`
 	MaxSegmentSize     int           `env-default:"1048576"         yaml:"max_segment_size"`
 	DataDir            string        `env-default:"/data/memdb/wal" yaml:"data_directory"`
+	Enabled            bool          `yaml:"enabled"`
+}
+
+type Replication struct {
+	Type         string        `env:"TYPE"        env-default:"master"         yaml:"replica_type"`
+	MasterAddr   string        `env:"MASTER_ADDR" env-default:"127.0.0.1:3232" yaml:"master_addr"`
+	SyncInterval time.Duration `env-default:"1s"  yaml:"sync_interval"`
+	Enabled      bool          `yaml:"enabled"`
 }

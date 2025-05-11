@@ -103,6 +103,10 @@ func NewTCPServer(logger *slog.Logger, opts ...TCPServerOption) (*TCPServer, err
 	}, nil
 }
 
+func (s *TCPServer) ListenAddr() string {
+	return s.lis.Addr().String()
+}
+
 func (s *TCPServer) ListenPort() int {
 	return s.lis.Addr().(*net.TCPAddr).Port //nolint:errcheck // ignore
 }

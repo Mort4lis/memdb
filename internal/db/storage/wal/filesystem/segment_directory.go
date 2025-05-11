@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/Mort4lis/memdb/internal/pkg/fsutils"
@@ -22,9 +23,9 @@ func NewSegmentDirectory(dirPath string) (*SegmentDirectory, error) {
 
 func (sd *SegmentDirectory) List() iter.Seq2[[]byte, error] {
 	return func(yield func([]byte, error) bool) {
-		paths, err := fsutils.ListDir(sd.dirPath)
+		paths, err := fsutils.ListDirPaths(sd.dirPath)
 		if err != nil {
-			err = fmt.Errorf("list all segments: %w", err)
+			err = fmt.Errorf("list all segment paths: %w", err)
 			yield(nil, err)
 			return
 		}
@@ -42,4 +43,41 @@ func (sd *SegmentDirectory) List() iter.Seq2[[]byte, error] {
 			}
 		}
 	}
+}
+
+func (sd *SegmentDirectory) ContentByName(name string) ([]byte, error) {
+	path := filepath.Join(sd.dirPath, name)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read segment %s: %w", path, err)
+	}
+	return data, nil
+}
+
+func (sd *SegmentDirectory) NextRotatedSegmentName(from string) (string, error) {
+	names, err := fsutils.ListDirNames(sd.dirPath)
+	if err != nil {
+		return "", fmt.Errorf("list all segment names: %w", err)
+	}
+	if len(names) <= 1 {
+		return "", nil
+	}
+
+	sort.Strings(names)
+	// Exclude the newest segment (assumed to be the last after sorting)
+	names = names[:len(names)-1]
+
+	if from == "" {
+		return names[0], nil
+	}
+
+	idx := sort.SearchStrings(names, from)
+	if idx < len(names) && names[idx] == from {
+		// Found. Return the next one
+		if idx+1 < len(names) {
+			return names[idx+1], nil
+		}
+		return "", nil // no next segment
+	}
+	return "", nil // 'from' not found, or no next segment
 }

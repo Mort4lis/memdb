@@ -15,8 +15,6 @@ import (
 	"github.com/Mort4lis/memdb/internal/db/config"
 	"github.com/Mort4lis/memdb/internal/db/logging"
 	"github.com/Mort4lis/memdb/internal/db/storage"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal/filesystem"
 	"github.com/Mort4lis/memdb/internal/network"
 )
 
@@ -33,9 +31,10 @@ func Run(confPath string) error {
 		return fmt.Errorf("create logger: %w", err)
 	}
 
-	store, err := initStorage(&conf)
+	var storeBuilder storage.Builder
+	store, err := storeBuilder.Build(logger, &conf)
 	if err != nil {
-		return fmt.Errorf("init storage: %w", err)
+		return fmt.Errorf("build storage: %w", err)
 	}
 
 	handler := compute.NewQueryHandler(logger, store)
@@ -66,39 +65,4 @@ func Run(confPath string) error {
 		logger.Error("Failed to shutdown tcp server", slog.Any("error", err))
 	}
 	return nil
-}
-
-func initStorage(conf *config.Config) (*storage.Storage, error) {
-	var opts []storage.Option
-	if conf.WAL != nil {
-		w, err := initWAL(conf.WAL)
-		if err != nil {
-			return nil, fmt.Errorf("init WAL: %w", err)
-		}
-		opts = append(opts, storage.WithWAL(w))
-	}
-
-	store, err := storage.NewStorage(conf.Engine, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("create storage: %w", err)
-	}
-	return store, nil
-}
-
-func initWAL(conf *config.WAL) (*wal.WAL, error) {
-	segmentDir, err := filesystem.NewSegmentDirectory(conf.DataDir)
-	if err != nil {
-		return nil, fmt.Errorf("new segment directory: %w", err)
-	}
-
-	segment, err := filesystem.NewSegment(conf.DataDir, conf.MaxSegmentSize)
-	if err != nil {
-		return nil, fmt.Errorf("new segment: %w", err)
-	}
-
-	res, err := wal.NewWAL(segmentDir, segment, conf.FlushBatchSize, conf.FlushBatchInterval)
-	if err != nil {
-		return nil, fmt.Errorf("new WAL: %w", err)
-	}
-	return res, nil
 }
