@@ -10,7 +10,13 @@ logging:
   level: "debug"
   format: "text"
 wal:
+  enabled: true
   flushing_batch_size: 100
   flushing_batch_interval: "10ms"
   max_segment_size: 1024
   data_directory: "./data/wal"
+replication:
+  enabled: true
+  replica_type: "master"
+  master_addr: ":3232"
+  sync_interval: 1s

@@ -1,0 +1,39 @@
+name: memdb
+
+services:
+  master:
+    image: memdb:latest
+    container_name: "memdb_master"
+    environment:
+      REPLICA_TYPE: master
+      REPLICA_MASTER_ADDR: :3232
+      LOG_LEVEL: debug
+    ports:
+      - "7991:7991"
+      - "3232:3232"
+    volumes:
+      - ./config.yaml:/memdb/config.yaml
+    restart: on-failure
+    networks:
+      - memdb
+
+  slave_1:
+    image: memdb:latest
+    container_name: "memdb_slave-1"
+    environment:
+      REPLICA_TYPE: slave
+      REPLICA_MASTER_ADDR: master:3232
+      LOG_LEVEL: debug
+    ports:
+      - "7992:7991"
+    volumes:
+      - ./config.yaml:/memdb/config.yaml
+    depends_on:
+      - master
+    restart: on-failure
+    networks:
+      - memdb
+
+networks:
+  memdb:
+    driver: bridge

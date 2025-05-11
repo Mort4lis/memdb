@@ -44,6 +44,10 @@ build:
 	go build -o build/${BIN_NAME} cmd/server/main.go && \
 		go build -o build/${BIN_NAME}-cli cmd/client/main.go
 
+.PHONY: build.docker
+build.docker:
+	docker build -t memdb:latest .
+
 .PHONY: generate
 generate:
 	go generate ./...

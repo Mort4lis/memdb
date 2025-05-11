@@ -22,9 +22,9 @@ func NewSegment(dirPath string, maxSize int) (*Segment, error) {
 		return nil, fmt.Errorf("create segment directory: %w", err)
 	}
 
-	paths, err := fsutils.ListDir(dirPath)
+	paths, err := fsutils.ListDirPaths(dirPath)
 	if err != nil {
-		return nil, fmt.Errorf("list all segments: %w", err)
+		return nil, fmt.Errorf("list all segment paths: %w", err)
 	}
 
 	sort.Strings(paths)

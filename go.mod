@@ -3,6 +3,7 @@ module github.com/Mort4lis/memdb
 go 1.23
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.5
