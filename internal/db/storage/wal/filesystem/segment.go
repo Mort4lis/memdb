@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ type Segment struct {
 	dirPath string
 	curSize int
 	maxSize int
+	closed  bool
 }
 
 func NewSegment(dirPath string, maxSize int) (*Segment, error) {
@@ -28,15 +30,12 @@ func NewSegment(dirPath string, maxSize int) (*Segment, error) {
 	}
 
 	sort.Strings(paths)
-
-	var lastPath string
 	if len(paths) == 0 {
-		lastPath = newSegmentPath(dirPath)
-	} else {
-		lastPath = paths[len(paths)-1]
+		return &Segment{dirPath: dirPath, maxSize: maxSize}, nil
 	}
 
-	file, err := os.OpenFile(lastPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+	lastPath := paths[len(paths)-1]
+	file, err := os.OpenFile(lastPath, os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("open file %s: %w", lastPath, err)
 	}
@@ -56,14 +55,13 @@ func NewSegment(dirPath string, maxSize int) (*Segment, error) {
 }
 
 func (s *Segment) Write(b []byte) error {
-	if s.file == nil {
-		return fmt.Errorf("segment is closed")
+	if s.closed {
+		return errors.New("segment is closed")
 	}
-
 	if len(b) > s.maxSize {
-		return fmt.Errorf("write data is too big")
+		return errors.New("write data is too big")
 	}
-	if s.curSize+len(b) > s.maxSize {
+	if s.file == nil || s.curSize+len(b) > s.maxSize {
 		if err := s.rotate(); err != nil {
 			return fmt.Errorf("rotate segment: %w", err)
 		}
@@ -87,20 +85,21 @@ func (s *Segment) rotate() error {
 		return fmt.Errorf("open file %s: %w", path, err)
 	}
 
-	oldFilename := s.file.Name()
-	err = s.file.Close()
+	if s.file != nil {
+		err = s.file.Close()
+		if err != nil {
+			err = fmt.Errorf("close file %s: %w", s.file.Name(), err)
+		}
+	}
 
 	s.file = file
 	s.curSize = 0
-
-	if err != nil {
-		return fmt.Errorf("close file %s: %w", oldFilename, err)
-	}
-	return nil
+	return err
 }
 
 func (s *Segment) Close() error {
 	if s.file == nil {
+		s.closed = true
 		return nil
 	}
 	if err := s.file.Close(); err != nil {
@@ -108,6 +107,7 @@ func (s *Segment) Close() error {
 	}
 
 	s.file = nil
+	s.closed = true
 	return nil
 }
 
