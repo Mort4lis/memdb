@@ -8,15 +8,14 @@ import (
 	"time"
 
 	"github.com/Mort4lis/memdb/internal/db/compute"
+	"github.com/Mort4lis/memdb/internal/db/storage/model"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
-
-//go:generate protoc --go_out=. --go_opt=paths=source_relative record.proto
 
 var ErrClosed = errors.New("wal closed")
 
 type recordPromise struct {
-	record  *Record
+	record  *model.Record
 	promise concurrency.PromiseError
 }
 
@@ -95,7 +94,7 @@ func (wal *WAL) flushBatch(batchPtr *[]recordPromise) {
 		return
 	}
 
-	records := make([]*Record, len(batch))
+	records := make([]*model.Record, len(batch))
 	for i := range batch {
 		records[i] = batch[i].record
 	}
@@ -113,7 +112,7 @@ func (wal *WAL) flushBatch(batchPtr *[]recordPromise) {
 
 func (wal *WAL) Append(cid compute.CommandID, args []string) concurrency.FutureError {
 	rp := recordPromise{
-		record: &Record{
+		record: &model.Record{
 			Lsn:       wal.lsn.Add(1),
 			CommandId: int64(cid),
 			Args:      args,

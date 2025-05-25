@@ -4,7 +4,7 @@
 // 	protoc        v5.29.3
 // source: record.proto
 
-package wal
+package model
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -90,7 +90,7 @@ const file_record_proto_rawDesc = "" +
 	"\x03lsn\x18\x01 \x01(\x03R\x03lsn\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x02 \x01(\x03R\tcommandId\x12\x12\n" +
-	"\x04args\x18\x03 \x03(\tR\x04argsB3Z1github.com/Mort4lis/memdb/internal/db/storage/walb\x06proto3"
+	"\x04args\x18\x03 \x03(\tR\x04argsB5Z3github.com/Mort4lis/memdb/internal/db/storage/modelb\x06proto3"
 
 var (
 	file_record_proto_rawDescOnce sync.Once
