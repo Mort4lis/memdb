@@ -17,6 +17,8 @@ import (
 type SegmentDirectory interface {
 	ContentByName(name string) ([]byte, error)
 	NextRotatedSegmentName(from string) (string, error)
+	LastSegmentName() (string, error)
+	Save(name string, data []byte) error
 }
 
 type Master struct {
