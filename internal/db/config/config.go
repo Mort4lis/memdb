@@ -8,7 +8,7 @@ import (
 
 type Config struct {
 	Engine      Engine      `yaml:"engine"`
-	Network     Network     `yaml:"network"`
+	Network     Network     `env-prefix:"NETWORK_" yaml:"network"`
 	Logging     Logging     `env-prefix:"LOG_"     yaml:"logging"`
 	WAL         WAL         `yaml:"wal"`
 	Replication Replication `env-prefix:"REPLICA_" yaml:"replication"`
@@ -20,7 +20,7 @@ type Engine struct {
 }
 
 type Network struct {
-	Addr           string        `env-default:":7991"  yaml:"addr"`
+	Addr           string        `env:"ADDR"           env-default:":7991"     yaml:"addr"`
 	MaxConnections int           `env-default:"100"    yaml:"max_connections"`
 	MaxMessageSize int           `env-default:"4096"   yaml:"max_message_size"`
 	IdleTimeout    time.Duration `yaml:"idle_timeout"`
