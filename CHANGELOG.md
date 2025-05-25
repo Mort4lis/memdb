@@ -1,3 +1,17 @@
+# [1.2.0](https://github.com/Mort4lis/memdb/compare/v1.1.0...v1.2.0) (2025-05-25)
+
+
+### Bug Fixes
+
+* add segment directory integration and save functionality ([cec0f35](https://github.com/Mort4lis/memdb/commit/cec0f3590eb0a9a88c6933e6e310bf920769f879))
+* fix and improve segment handling logic in WAL filesystem ([80eead6](https://github.com/Mort4lis/memdb/commit/80eead69f8d902cfd23107f29068b5f824292295))
+
+
+### Features
+
+* add sharded in-memory engine with configurable partitions ([76d99d8](https://github.com/Mort4lis/memdb/commit/76d99d831061efd8f265c5299265e416fd36620f))
+* implement master-slave replication ([4a40529](https://github.com/Mort4lis/memdb/commit/4a40529bda789ccfca19b50514aa31624724cd8f))
+
 # [1.1.0](https://github.com/Mort4lis/memdb/compare/v1.0.0...v1.1.0) (2025-05-03)
 
 
