@@ -1,4 +1,4 @@
-FROM golang:1.23 as builder
+FROM golang:1.23 AS builder
 
 # Define build environment variables
 ENV GOOS linux
@@ -31,7 +31,8 @@ COPY --from=builder /memdb/build/memdb ./
 COPY --from=builder /memdb/build/memdb-cli ./
 
 # Define volumes
-VOLUME config.yaml
+VOLUME /memdb/config.yaml
+VOLUME /memdb/data
 
 # Expose ports
 EXPOSE 7991

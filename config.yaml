@@ -1,16 +1,23 @@
 engine:
   type: "in_memory"
+  partitions_number: 32
 network:
-  addr: ":7991"
+  addr: ":7991" # env: NETWORK_ADDR
   max_connections: 100
   max_message_size: 4096
   idle_timeout: 2m
   write_timeout: 15s
 logging:
-  level: "debug"
-  format: "text"
+  level: "debug" # env: LOG_LEVEL
+  format: "text" # env: LOG_FORMAT
 wal:
+  enabled: true
   flushing_batch_size: 100
   flushing_batch_interval: "10ms"
   max_segment_size: 1024
   data_directory: "./data/wal"
+replication:
+  enabled: true
+  replica_type: "master" # env: REPLICA_TYPE
+  master_addr: ":3232"   # env: REPLICA_MASTER_ADDR
+  sync_interval: 1s

@@ -1,5 +1,5 @@
 BIN_NAME := memdb
-LINTER_VERSION := v1.62.2
+LINTER_VERSION := v1.64.8
 MOCKERY_VERSION_v2 := 51.1
 
 GOBIN=${GOPATH}/bin
@@ -43,6 +43,10 @@ test.cover:
 build:
 	go build -o build/${BIN_NAME} cmd/server/main.go && \
 		go build -o build/${BIN_NAME}-cli cmd/client/main.go
+
+.PHONY: build.docker
+build.docker:
+	docker build -t memdb:latest .
 
 .PHONY: generate
 generate:

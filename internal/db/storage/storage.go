@@ -2,18 +2,15 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Mort4lis/memdb/internal/db/compute"
-	"github.com/Mort4lis/memdb/internal/db/config"
-	"github.com/Mort4lis/memdb/internal/db/storage/engine"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal/filesystem"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
-const (
-	InMemoryEngine = "in_memory"
+var (
+	ErrSlaveMutable = errors.New("mutable transaction on slave")
 )
 
 type Engine interface {
@@ -28,60 +25,81 @@ type WAL interface {
 	Shutdown(ctx context.Context) error
 }
 
-type Storage struct {
-	engine Engine
-	wal    WAL
+type Replica interface {
+	IsSlave() bool
+	Shutdown(ctx context.Context) error
 }
 
-func NewStorage(engineConf config.Engine, walConf *config.WAL) (*Storage, error) {
-	store := &Storage{}
+type SlaveReplica interface {
+	StartHandle(fn func(cid compute.CommandID, args []string) error)
+}
 
-	switch engineConf.Type {
-	case InMemoryEngine:
-		store.engine = engine.NewEngine()
-	default:
-		return nil, fmt.Errorf("unsupported engine type: %s", engineConf.Type)
+type Option func(s *Storage)
+
+func WithEngine(e Engine) Option {
+	return func(s *Storage) {
+		s.engine = e
+	}
+}
+
+func WithWAL(w WAL) Option {
+	return func(s *Storage) {
+		s.wal = w
+	}
+}
+
+func WithReplica(r Replica) Option {
+	return func(s *Storage) {
+		s.replica = r
+	}
+}
+
+type Storage struct {
+	engine  Engine
+	wal     WAL
+	replica Replica
+}
+
+func NewStorage(opts ...Option) (*Storage, error) {
+	store := &Storage{}
+	for _, opt := range opts {
+		opt(store)
 	}
 
-	if walConf != nil {
-		var err error
-		store.wal, err = initWAL(walConf)
-		if err != nil {
-			return nil, fmt.Errorf("init WAL: %w", err)
+	if store.wal != nil {
+		if err := store.wal.Restore(store.restoreCallback); err != nil {
+			return nil, fmt.Errorf("restore WAL: %w", err)
 		}
-
-		err = store.restore()
-		if err != nil {
-			return nil, err
+	}
+	if store.replica != nil {
+		if slave, ok := store.replica.(SlaveReplica); ok {
+			slave.StartHandle(store.restoreCallback)
 		}
 	}
 	return store, nil
 }
 
-func (s *Storage) restore() error {
+func (s *Storage) restoreCallback(cid compute.CommandID, args []string) error {
 	ctx := context.Background()
-	err := s.wal.Restore(func(cid compute.CommandID, args []string) error {
-		switch cid {
-		case compute.SetCommandID:
-			if err := s.engine.Set(ctx, args[0], args[1]); err != nil {
-				return fmt.Errorf("set value in engine: %w", err)
-			}
-		case compute.DelCommandID:
-			if err := s.engine.Del(ctx, args[0]); err != nil {
-				return fmt.Errorf("delete value from engine: %w", err)
-			}
-		default:
-			return fmt.Errorf("unsupported command: %s", cid)
+	switch cid {
+	case compute.SetCommandID:
+		if err := s.engine.Set(ctx, args[0], args[1]); err != nil {
+			return fmt.Errorf("set value in engine: %w", err)
 		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("restore WAL: %w", err)
+	case compute.DelCommandID:
+		if err := s.engine.Del(ctx, args[0]); err != nil {
+			return fmt.Errorf("delete value from engine: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported command: %s", cid)
 	}
 	return nil
 }
 
 func (s *Storage) Set(ctx context.Context, key, value string) error {
+	if s.replica != nil && s.replica.IsSlave() {
+		return ErrSlaveMutable
+	}
 	if s.wal != nil {
 		future := s.wal.Append(compute.SetCommandID, []string{key, value})
 		if err := future.Get(); err != nil {
@@ -104,6 +122,9 @@ func (s *Storage) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (s *Storage) Del(ctx context.Context, key string) error {
+	if s.replica != nil && s.replica.IsSlave() {
+		return ErrSlaveMutable
+	}
 	if s.wal != nil {
 		future := s.wal.Append(compute.DelCommandID, []string{key})
 		if err := future.Get(); err != nil {
@@ -118,28 +139,16 @@ func (s *Storage) Del(ctx context.Context, key string) error {
 }
 
 func (s *Storage) Shutdown(ctx context.Context) error {
-	if s.wal != nil {
-		if err := s.wal.Shutdown(ctx); err != nil {
-			return fmt.Errorf("shutdown WAL: %w", err)
+	var errs []error
+	if s.replica != nil {
+		if err := s.replica.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("shutdown replica: %w", err))
 		}
 	}
-	return nil
-}
-
-func initWAL(conf *config.WAL) (*wal.WAL, error) {
-	segmentDir, err := filesystem.NewSegmentDirectory(conf.DataDir)
-	if err != nil {
-		return nil, fmt.Errorf("new segment directory: %w", err)
+	if s.wal != nil {
+		if err := s.wal.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("shutdown WAL: %w", err))
+		}
 	}
-
-	segment, err := filesystem.NewSegment(conf.DataDir, conf.MaxSegmentSize)
-	if err != nil {
-		return nil, fmt.Errorf("new segment: %w", err)
-	}
-
-	res, err := wal.NewWAL(segmentDir, segment, conf.FlushBatchSize, conf.FlushBatchInterval)
-	if err != nil {
-		return nil, fmt.Errorf("new WAL: %w", err)
-	}
-	return res, nil
+	return errors.Join(errs...)
 }

@@ -15,12 +15,12 @@ import (
 )
 
 type TCPHandler interface {
-	Handle(ctx context.Context, req string) string
+	Handle(ctx context.Context, req []byte) []byte
 }
 
-type TCPHandlerFunc func(ctx context.Context, req string) string
+type TCPHandlerFunc func(ctx context.Context, req []byte) []byte
 
-func (fn TCPHandlerFunc) Handle(ctx context.Context, req string) string {
+func (fn TCPHandlerFunc) Handle(ctx context.Context, req []byte) []byte {
 	return fn(ctx, req)
 }
 
@@ -103,6 +103,10 @@ func NewTCPServer(logger *slog.Logger, opts ...TCPServerOption) (*TCPServer, err
 	}, nil
 }
 
+func (s *TCPServer) ListenAddr() string {
+	return s.lis.Addr().String()
+}
+
 func (s *TCPServer) ListenPort() int {
 	return s.lis.Addr().(*net.TCPAddr).Port //nolint:errcheck // ignore
 }
@@ -156,13 +160,13 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 		logger.Info("Disconnected client")
 	}()
 
-	buf := make([]byte, s.conf.maxMessageSize)
 	for {
 		var (
 			n   int
 			err error
 		)
 
+		buf := make([]byte, s.conf.maxMessageSize)
 		err = concurrency.WithContextCheck(ctx, func() error {
 			netutils.SetReadDeadline(conn, s.conf.idleTimeout)
 			n, err = conn.Read(buf)
@@ -179,15 +183,15 @@ func (s *TCPServer) handleConnection(ctx context.Context, conn net.Conn, h TCPHa
 			return
 		}
 
-		var resp string
+		var resp []byte
 		err = concurrency.WithContextCheck(ctx, func() error {
-			resp = h.Handle(ctx, string(buf[:n]))
+			resp = h.Handle(ctx, buf[:n])
 			return nil
 		})
 
 		err = concurrency.WithContextCheck(ctx, func() error {
 			netutils.SetWriteDeadline(conn, s.conf.writeTimeout)
-			_, err = conn.Write([]byte(resp))
+			_, err = conn.Write(resp)
 			return err //nolint:wrapcheck // ignore
 		})
 		if err != nil {

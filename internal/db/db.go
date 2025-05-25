@@ -23,23 +23,24 @@ const shutdownTimeout = 30 * time.Second
 func Run(confPath string) error {
 	var conf config.Config
 	if err := cleanenv.ReadConfig(confPath, &conf); err != nil {
-		return fmt.Errorf("read config: %v", err)
+		return fmt.Errorf("read config: %w", err)
 	}
 
 	logger, err := logging.NewLoggerFromConfig(conf.Logging)
 	if err != nil {
-		return fmt.Errorf("create logger: %v", err)
+		return fmt.Errorf("create logger: %w", err)
 	}
 
-	store, err := storage.NewStorage(conf.Engine, conf.WAL)
+	var storeBuilder storage.Builder
+	store, err := storeBuilder.Build(logger, &conf)
 	if err != nil {
-		return fmt.Errorf("create storage: %v", err)
+		return fmt.Errorf("build storage: %w", err)
 	}
 
 	handler := compute.NewQueryHandler(logger, store)
 	server, err := network.NewTCPServer(logger, conf.Network.ServerOptions()...)
 	if err != nil {
-		return fmt.Errorf("create tcp server: %v", err)
+		return fmt.Errorf("create tcp server: %w", err)
 	}
 
 	go func() {

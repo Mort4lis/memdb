@@ -28,6 +28,10 @@ func (r Response) String() string {
 	return fmt.Sprintf("[%s]", r.kind)
 }
 
+func (r Response) Bytes() []byte {
+	return []byte(r.String())
+}
+
 var (
 	OKResponse = Response{kind: "ok"}
 

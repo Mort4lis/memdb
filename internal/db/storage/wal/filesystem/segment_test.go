@@ -10,21 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewSegment_CreatesDirAndFile(t *testing.T) {
-	dir := t.TempDir()
-	seg, err := NewSegment(dir, 100)
-	require.NoError(t, err)
-	defer seg.Close()
-
-	assert.NotNil(t, seg.file)
-	assert.Equal(t, dir, seg.dirPath)
-	assert.Equal(t, 100, seg.maxSize)
-
-	info, err := seg.file.Stat()
-	require.NoError(t, err)
-	assert.True(t, info.Mode().IsRegular())
-}
-
 func TestNewSegment_UsesExistingFile(t *testing.T) {
 	dir := t.TempDir()
 	// Create the file in dir so it is not empty
@@ -39,6 +24,7 @@ func TestNewSegment_UsesExistingFile(t *testing.T) {
 	require.NoError(t, err)
 	defer seg.Close()
 
+	assert.NotNil(t, seg.file)
 	assert.Equal(t, len("abc"), seg.curSize)
 }
 
@@ -57,7 +43,8 @@ func TestNewSegment_CreatesNewSegmentOnEmpty(t *testing.T) {
 	// No files in dir
 	seg, err := NewSegment(dir, 10)
 	require.NoError(t, err)
-	assert.NotNil(t, seg.file)
+	assert.Nil(t, seg.file)
+	assert.Equal(t, 10, seg.maxSize)
 }
 
 func TestSegment_Write_WritesDataAndSyncs(t *testing.T) {
@@ -88,10 +75,9 @@ func TestSegment_Write_RotatesOnOverflow(t *testing.T) {
 	require.NoError(t, err)
 	defer seg.Close()
 
-	oldFileName := seg.file.Name()
-
 	require.NoError(t, seg.Write([]byte("123")))
 	require.NoError(t, seg.Write([]byte("456"))) // reaches exactly maxSize
+	oldFileName := seg.file.Name()
 
 	// this should trigger rotation
 	err = seg.Write([]byte("hey"))

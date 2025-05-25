@@ -7,18 +7,20 @@ import (
 )
 
 type Config struct {
-	Engine  Engine  `yaml:"engine"`
-	Network Network `yaml:"network"`
-	Logging Logging `yaml:"logging"`
-	WAL     *WAL    `yaml:"wal"`
+	Engine      Engine      `yaml:"engine"`
+	Network     Network     `env-prefix:"NETWORK_" yaml:"network"`
+	Logging     Logging     `env-prefix:"LOG_"     yaml:"logging"`
+	WAL         WAL         `yaml:"wal"`
+	Replication Replication `env-prefix:"REPLICA_" yaml:"replication"`
 }
 
 type Engine struct {
-	Type string `env-default:"in_memory" yaml:"type"`
+	Type             string `env-default:"in_memory" yaml:"type"`
+	PartitionsNumber uint   `env-default:"32"        yaml:"partitions_number"`
 }
 
 type Network struct {
-	Addr           string        `env-default:":7991"  yaml:"addr"`
+	Addr           string        `env:"ADDR"           env-default:":7991"     yaml:"addr"`
 	MaxConnections int           `env-default:"100"    yaml:"max_connections"`
 	MaxMessageSize int           `env-default:"4096"   yaml:"max_message_size"`
 	IdleTimeout    time.Duration `yaml:"idle_timeout"`
@@ -41,8 +43,8 @@ func (c Network) ServerOptions() []network.TCPServerOption {
 }
 
 type Logging struct {
-	Level  string `env-default:"info" yaml:"level"`
-	Format string `env-default:"text" yaml:"format"`
+	Level  string `env:"LEVEL"  env-default:"info" yaml:"level"`
+	Format string `env:"FORMAT" env-default:"text" yaml:"format"`
 }
 
 type WAL struct {
@@ -50,4 +52,12 @@ type WAL struct {
 	FlushBatchInterval time.Duration `env-default:"10ms"            yaml:"flushing_batch_interval"`
 	MaxSegmentSize     int           `env-default:"1048576"         yaml:"max_segment_size"`
 	DataDir            string        `env-default:"/data/memdb/wal" yaml:"data_directory"`
+	Enabled            bool          `yaml:"enabled"`
+}
+
+type Replication struct {
+	Type         string        `env:"TYPE"        env-default:"master"         yaml:"replica_type"`
+	MasterAddr   string        `env:"MASTER_ADDR" env-default:"127.0.0.1:3232" yaml:"master_addr"`
+	SyncInterval time.Duration `env-default:"1s"  yaml:"sync_interval"`
+	Enabled      bool          `yaml:"enabled"`
 }

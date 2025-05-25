@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/Mort4lis/memdb/internal/db/compute"
+	"github.com/Mort4lis/memdb/internal/db/storage/model"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
 
@@ -32,7 +33,7 @@ func waitFuture(t *testing.T, fut concurrency.FutureError) error {
 	}
 }
 
-func encodeRecords(t *testing.T, rs ...*Record) []byte {
+func encodeRecords(t *testing.T, rs ...*model.Record) []byte {
 	t.Helper()
 
 	var buf bytes.Buffer
@@ -65,7 +66,7 @@ func TestWAL_Append_BatchFlush(t *testing.T) {
 	require.NoError(t, err)
 	defer wal.Shutdown(context.Background()) //nolint:errcheck // ignore
 
-	rs := []*Record{
+	rs := []*model.Record{
 		{Lsn: 1, CommandId: int64(compute.SetCommandID), Args: []string{"key", "val"}},
 		{Lsn: 2, CommandId: int64(compute.DelCommandID), Args: []string{"key"}},
 	}
@@ -92,7 +93,7 @@ func TestWAL_Append_FlushesOnTimer(t *testing.T) {
 	require.NoError(t, err)
 	defer wal.Shutdown(context.Background()) //nolint:errcheck // ignore
 
-	r := &Record{Lsn: 1, CommandId: int64(compute.SetCommandID), Args: []string{"key", "val"}}
+	r := &model.Record{Lsn: 1, CommandId: int64(compute.SetCommandID), Args: []string{"key", "val"}}
 
 	w.On("Write", encodeRecords(t, r)).Return(nil)
 	w.On("Close").Return(nil)
@@ -109,7 +110,7 @@ func TestWAL_Append_PropagatesErrorToFutures(t *testing.T) {
 	require.NoError(t, err)
 	defer wal.Shutdown(context.Background()) //nolint:errcheck // ignore
 
-	r := &Record{Lsn: 1, CommandId: int64(compute.SetCommandID), Args: []string{"key", "val"}}
+	r := &model.Record{Lsn: 1, CommandId: int64(compute.SetCommandID), Args: []string{"key", "val"}}
 
 	unexpectedErr := errors.New("unexpected error")
 	w.On("Write", encodeRecords(t, r)).Return(unexpectedErr)
@@ -139,7 +140,7 @@ func TestWAL_Restore_Success(t *testing.T) {
 	dir := NewMockSegmentDirectory(t)
 	w := NewMockSegmentWriter(t)
 
-	rs := []*Record{
+	rs := []*model.Record{
 		{Lsn: 1, CommandId: int64(compute.SetCommandID), Args: []string{"key", "val"}},
 		{Lsn: 2, CommandId: int64(compute.DelCommandID), Args: []string{"key"}},
 		{Lsn: 3, CommandId: int64(compute.SetCommandID), Args: []string{"key2", "val2"}},
@@ -158,11 +159,11 @@ func TestWAL_Restore_Success(t *testing.T) {
 	w.On("Close").Return(nil)
 
 	var lsn int64
-	gotRecords := make([]*Record, 0, len(rs))
+	gotRecords := make([]*model.Record, 0, len(rs))
 
 	err = wal.Restore(func(cid compute.CommandID, args []string) error {
 		lsn++
-		gotRecords = append(gotRecords, &Record{
+		gotRecords = append(gotRecords, &model.Record{
 			Lsn:       lsn,
 			CommandId: int64(cid),
 			Args:      args,
