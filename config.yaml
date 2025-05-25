@@ -1,5 +1,6 @@
 engine:
   type: "in_memory"
+  partitions_number: 32
 network:
   addr: ":7991"
   max_connections: 100
