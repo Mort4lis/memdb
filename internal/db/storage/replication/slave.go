@@ -19,6 +19,7 @@ import (
 type Slave struct {
 	logger       *slog.Logger
 	cli          *network.TCPClient
+	sd           SegmentDirectory
 	syncInterval time.Duration
 
 	lastSegmentName string
@@ -28,6 +29,7 @@ type Slave struct {
 
 func NewSlave(
 	logger *slog.Logger,
+	sd SegmentDirectory,
 	masterAddr string,
 	syncInterval time.Duration,
 	opts ...network.TCPClientOption,
@@ -36,11 +38,19 @@ func NewSlave(
 	if err != nil {
 		return nil, fmt.Errorf("create tcp client: %w", err)
 	}
+
+	lastSegmentName, err := sd.LastSegmentName()
+	if err != nil {
+		return nil, fmt.Errorf("get last segment name: %w", err)
+	}
+
 	return &Slave{
-		cli:          cli,
-		syncInterval: syncInterval,
-		doneCh:       make(chan struct{}),
-		logger:       logger.With(slog.String("component", "replication.slave")),
+		cli:             cli,
+		sd:              sd,
+		syncInterval:    syncInterval,
+		lastSegmentName: lastSegmentName,
+		doneCh:          make(chan struct{}),
+		logger:          logger.With(slog.String("component", "replication.slave")),
 	}, nil
 }
 
@@ -100,30 +110,30 @@ func (s *Slave) getNextRecords(ctx context.Context) ([]*wal.Record, error) {
 	if err = proto.Unmarshal(respBytes, &resp); err != nil {
 		return nil, fmt.Errorf("unmarshal response: %w", err)
 	}
-
-	if resp.Error == nil {
-		s.logger.Debug("Received next rotated segment from master, applying records...",
-			slog.String("last_segment_name", s.lastSegmentName),
-		)
-
-		rs, decErr := wal.DecodeRecords(resp.Data)
-		if decErr != nil {
-			return nil, fmt.Errorf("decode records: %w", decErr)
+	if resp.Error != nil {
+		if resp.Error.Code == contract.ErrorCode_NOT_FOUND {
+			s.logger.Debug("New rotated segment is not found",
+				slog.String("last_segment_name", s.lastSegmentName),
+			)
+			return nil, nil
 		}
-
-		// TODO save segment to wal directory
-
-		s.lastSegmentName = resp.SegmentName
-		return rs, nil
+		return nil, fmt.Errorf("get next segment: %w", resp.Error)
 	}
 
-	if resp.Error.Code == contract.ErrorCode_NOT_FOUND {
-		s.logger.Debug("New rotated segment is not found",
-			slog.String("last_segment_name", s.lastSegmentName),
-		)
-		return nil, nil
+	s.logger.Debug("Received next rotated segment from master, applying records...",
+		slog.String("last_segment_name", s.lastSegmentName),
+	)
+
+	rs, decErr := wal.DecodeRecords(resp.Data)
+	if decErr != nil {
+		return nil, fmt.Errorf("decode records: %w", decErr)
 	}
-	return nil, fmt.Errorf("get next segment: %w", resp.Error)
+	if err = s.sd.Save(resp.SegmentName, resp.Data); err != nil {
+		return nil, fmt.Errorf("save segment: %w", err)
+	}
+
+	s.lastSegmentName = resp.SegmentName
+	return rs, nil
 }
 
 func (s *Slave) Shutdown(ctx context.Context) (err error) {

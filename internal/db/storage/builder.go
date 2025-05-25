@@ -90,18 +90,17 @@ func (b *Builder) buildReplica(logger *slog.Logger, walConf config.WAL, replicaC
 		return errors.New("replication is not supported without WAL")
 	}
 
+	sd, sdErr := filesystem.NewSegmentDirectory(walConf.DataDir)
+	if sdErr != nil {
+		return fmt.Errorf("new segment directory: %w", sdErr)
+	}
+
 	var (
 		r   Replica
 		err error
 	)
-
 	switch replicaConf.Type {
 	case replication.MasterType:
-		sd, sdErr := filesystem.NewSegmentDirectory(walConf.DataDir)
-		if sdErr != nil {
-			return fmt.Errorf("new segment directory: %w", sdErr)
-		}
-
 		opts := []network.TCPServerOption{
 			network.WithServerListen(replicaConf.MasterAddr),
 			network.WithServerMaxMessageSize(walConf.MaxSegmentSize),
@@ -116,7 +115,7 @@ func (b *Builder) buildReplica(logger *slog.Logger, walConf config.WAL, replicaC
 			network.WithClientReadTimeout(defaultReadTimeout),
 			network.WithClientReadBufferSize(int(float64(walConf.MaxSegmentSize) * 2)), //nolint:mnd // ignore
 		}
-		r, err = replication.NewSlave(logger, replicaConf.MasterAddr, replicaConf.SyncInterval, opts...)
+		r, err = replication.NewSlave(logger, sd, replicaConf.MasterAddr, replicaConf.SyncInterval, opts...)
 	default:
 		return fmt.Errorf("unsupported replica type: %s", replicaConf.Type)
 	}

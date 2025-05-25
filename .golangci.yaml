@@ -145,6 +145,13 @@ linters-settings:
               - github.com/google/uuid
             reason: "gofrs' package is not go module"
 
+  gosec:
+    # To specify the configuration of rules.
+    config:
+      # Maximum allowed permissions mode for os.WriteFile and ioutil.WriteFile
+      # Default: "0600"
+      G306: "0644"
+
   govet:
     # Enable all analyzers.
     # Default: false

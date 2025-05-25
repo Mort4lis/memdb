@@ -81,3 +81,23 @@ func (sd *SegmentDirectory) NextRotatedSegmentName(from string) (string, error) 
 	}
 	return "", nil // 'from' not found, or no next segment
 }
+
+func (sd *SegmentDirectory) LastSegmentName() (string, error) {
+	names, err := fsutils.ListDirNames(sd.dirPath)
+	if err != nil {
+		return "", fmt.Errorf("list all segment names: %w", err)
+	}
+	if len(names) == 0 {
+		return "", nil
+	}
+	sort.Strings(names)
+	return names[len(names)-1], nil
+}
+
+func (sd *SegmentDirectory) Save(name string, data []byte) error {
+	path := filepath.Join(sd.dirPath, name)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write file %s: %w", path, err)
+	}
+	return nil
+}
