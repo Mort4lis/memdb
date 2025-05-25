@@ -32,6 +32,7 @@ COPY --from=builder /memdb/build/memdb-cli ./
 
 # Define volumes
 VOLUME /memdb/config.yaml
+VOLUME /memdb/data
 
 # Expose ports
 EXPOSE 7991
