@@ -1,6 +1,7 @@
 package replication
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -10,8 +11,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/Mort4lis/memdb/internal/db/compute"
+	"github.com/Mort4lis/memdb/internal/db/storage/model"
 	"github.com/Mort4lis/memdb/internal/db/storage/replication/contract"
-	"github.com/Mort4lis/memdb/internal/db/storage/wal"
 	"github.com/Mort4lis/memdb/internal/network"
 	"github.com/Mort4lis/memdb/internal/pkg/concurrency"
 )
@@ -87,7 +88,7 @@ func (s *Slave) StartHandle(fn func(cid compute.CommandID, args []string) error)
 	}()
 }
 
-func (s *Slave) getNextRecords(ctx context.Context) ([]*wal.Record, error) {
+func (s *Slave) getNextRecords(ctx context.Context) ([]*model.Record, error) {
 	req := contract.NextSegmentRequest{
 		LastSegmentName: s.lastSegmentName,
 		RequestId:       uuid.New().String(),
@@ -124,7 +125,8 @@ func (s *Slave) getNextRecords(ctx context.Context) ([]*wal.Record, error) {
 		slog.String("last_segment_name", s.lastSegmentName),
 	)
 
-	rs, decErr := wal.DecodeRecords(resp.Data)
+	buf := bytes.NewBuffer(resp.Data)
+	rs, decErr := model.DecodeRecords(buf)
 	if decErr != nil {
 		return nil, fmt.Errorf("decode records: %w", decErr)
 	}

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package schema.v1;
 
-option go_package = "github.com/Mort4lis/memdb/internal/db/storage/wal";
+option go_package = "github.com/Mort4lis/memdb/internal/db/storage/model";
 
 message Record {
   int64 lsn = 1;

@@ -2,12 +2,9 @@ package wal
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
-	"io"
 	"iter"
 
-	"google.golang.org/protobuf/encoding/protodelim"
+	"github.com/Mort4lis/memdb/internal/db/storage/model"
 )
 
 //go:generate mockery --inpackage --testonly --case underscore --name SegmentDirectory
@@ -23,15 +20,16 @@ func newRecordReader(sd SegmentDirectory) *recordReader {
 	return &recordReader{sd: sd}
 }
 
-func (rr *recordReader) All() iter.Seq2[*Record, error] {
-	return func(yield func(*Record, error) bool) {
+func (rr *recordReader) All() iter.Seq2[*model.Record, error] {
+	return func(yield func(*model.Record, error) bool) {
 		for data, err := range rr.sd.List() {
 			if err != nil {
 				yield(nil, err)
 				return
 			}
 
-			rs, decErr := DecodeRecords(data)
+			buf := bytes.NewBuffer(data)
+			rs, decErr := model.DecodeRecords(buf)
 			if decErr != nil {
 				yield(nil, decErr)
 				return
@@ -44,24 +42,4 @@ func (rr *recordReader) All() iter.Seq2[*Record, error] {
 			}
 		}
 	}
-}
-
-func DecodeRecords(b []byte) ([]*Record, error) {
-	var rs []*Record
-	buf := bytes.NewBuffer(b)
-
-	for {
-		var r Record
-		err := protodelim.UnmarshalFrom(buf, &r)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("decode record: %w", err)
-		}
-
-		rs = append(rs, &r)
-	}
-
-	return rs, nil
 }
