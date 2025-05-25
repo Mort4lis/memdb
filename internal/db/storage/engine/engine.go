@@ -2,35 +2,36 @@ package engine
 
 import (
 	"context"
-	"sync"
+	"hash/fnv"
 
 	dberrors "github.com/Mort4lis/memdb/internal/db/errors"
 )
 
 type Engine struct {
-	mu   sync.RWMutex
-	data map[string]string
+	shards []*shard
 }
 
-func NewEngine() *Engine {
-	return &Engine{
-		data: make(map[string]string),
+func NewEngine(partitionsNumber uint) *Engine {
+	if partitionsNumber == 0 {
+		partitionsNumber = 1
 	}
+
+	shards := make([]*shard, partitionsNumber)
+	for i := range shards {
+		shards[i] = newShard()
+	}
+	return &Engine{shards: shards}
 }
 
 func (e *Engine) Set(_ context.Context, key, value string) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	e.data[key] = value
+	sh := e.getShardByKey(key)
+	sh.Set(key, value)
 	return nil
 }
 
 func (e *Engine) Get(_ context.Context, key string) (string, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	value, ok := e.data[key]
+	sh := e.getShardByKey(key)
+	value, ok := sh.Get(key)
 	if !ok {
 		return "", dberrors.ErrNotFound
 	}
@@ -38,9 +39,13 @@ func (e *Engine) Get(_ context.Context, key string) (string, error) {
 }
 
 func (e *Engine) Del(_ context.Context, key string) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	delete(e.data, key)
+	sh := e.getShardByKey(key)
+	sh.Del(key)
 	return nil
+}
+
+func (e *Engine) getShardByKey(key string) *shard {
+	hasher := fnv.New32a()
+	hasher.Write([]byte(key))
+	return e.shards[int(hasher.Sum32())%len(e.shards)]
 }

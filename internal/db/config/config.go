@@ -15,7 +15,8 @@ type Config struct {
 }
 
 type Engine struct {
-	Type string `env-default:"in_memory" yaml:"type"`
+	Type             string `env-default:"in_memory" yaml:"type"`
+	PartitionsNumber uint   `env-default:"32"        yaml:"partitions_number"`
 }
 
 type Network struct {

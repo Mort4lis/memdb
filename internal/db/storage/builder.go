@@ -49,7 +49,7 @@ func (b *Builder) buildEngine(conf config.Engine) error {
 	var e Engine
 	switch conf.Type {
 	case engine.InMemoryType:
-		e = engine.NewEngine()
+		e = engine.NewEngine(conf.PartitionsNumber)
 	default:
 		return fmt.Errorf("unsupported engine type: %s", conf.Type)
 	}
